@@ -29,9 +29,12 @@ private:
     void updateApplication();
     
     void segmentButtonClick();
-    void gradientButtonClick();
-    void verticalSeamButtonClick();
-    void horizontalSeamButtonClick();
+    void sobelGradientButtonClick();
+    void scharrGradientButtonClick();
+    void verticalSeamGradientButtonClick();
+    void horizontalSeamGradientButtonClick();
+    void verticalSeamImageButtonClick();
+    void horizontalSeamImageButtonClick();
     
     void deleteVerticalSeamButtonClick();
     
@@ -52,6 +55,8 @@ private:
     gl::Texture         segmentedTexture;
     gl::Texture         gradientTexture;
     gl::Texture         seamCarvedTexture;
+    
+    bool showGradient = false;
     
     gl::Texture         retargetedTexture;
     
@@ -128,7 +133,7 @@ void ImageRetargettingApp::initTextures(fs::path path)
     originalImage =  Surface(originalTexture);
     
     gradientImage = originalImage.clone();
-    gradientTexture = gl::Texture(seamCarver->getGradientImage(gradientImage));
+    gradientTexture = gl::Texture(gradientImage);;
     
     seamCarvedImage = originalImage.clone();
     seamCarvedTexture = gl::Texture(seamCarvedImage);
@@ -163,13 +168,18 @@ void ImageRetargettingApp::updateData()
     segParams->addText("Image Height: " + to_string(segmentedTexture.getHeight()));
     
     gradParams->clear();
-    gradParams->addButton( "Gradient", std::bind( &ImageRetargettingApp::gradientButtonClick, this ) );
+    gradParams->addParam( "Scale", &(seamCarver->scale) ).min( 1 ).max( 50 ).step( 1 );
+    gradParams->addParam( "Delta", &(seamCarver->delta) ).min( 0 ).max( 100 ).step( 1 );
+    gradParams->addButton( "Sobel Gradient", std::bind( &ImageRetargettingApp::sobelGradientButtonClick, this ) );
+    gradParams->addButton( "Scharr Gradient", std::bind( &ImageRetargettingApp::scharrGradientButtonClick, this ) );
     gradParams->addText("Time: " + to_string(seamCarver->gradTime));
     gradParams->addSeparator();
     
     gradParams->addParam( "Nb of Seams", &(seamCarver->nbOfSeams)).min( 1 ).max( 200 ).step( 1 );
-    gradParams->addButton( "Vertical Seam", std::bind( &ImageRetargettingApp::verticalSeamButtonClick, this ) );
-    gradParams->addButton( "Horizontal Seam", std::bind( &ImageRetargettingApp::horizontalSeamButtonClick, this ) );
+    gradParams->addButton( "Vertical Seam Gradient", std::bind( &ImageRetargettingApp::verticalSeamGradientButtonClick, this ) );
+    gradParams->addButton( "Horizontal Seam Gradient", std::bind( &ImageRetargettingApp::horizontalSeamGradientButtonClick, this ) );
+    gradParams->addButton( "Vertical Seam Image", std::bind( &ImageRetargettingApp::verticalSeamImageButtonClick, this ) );
+    gradParams->addButton( "Horizontal Seam Image", std::bind( &ImageRetargettingApp::horizontalSeamImageButtonClick, this ) );
 
     gradParams->addText("Time: " + to_string(seamCarver->carveTime));
     gradParams->addSeparator();
@@ -187,6 +197,9 @@ void ImageRetargettingApp::updateWindows()
     segmentedImageWindow->setSize(segmentedTexture.getWidth(), segmentedTexture.getHeight());
     gradientImageWindow->setSize(gradientTexture.getWidth(), gradientTexture.getHeight());
 }
+
+
+
 
 void ImageRetargettingApp::updateApplication()
 {
@@ -227,8 +240,14 @@ void ImageRetargettingApp::drawRetargettedImageWindow()
 void ImageRetargettingApp::drawGradientImageWindow()
 {
     gl::clear( Color( 0.f, 0.f, 0.f ) );
-    if( gradientTexture ) {
-        gl::draw(gradientTexture);
+    if(showGradient){
+        if( gradientTexture ) {
+            gl::draw(gradientTexture);
+            gradParams->draw();
+        }
+    }
+    else if( seamCarvedTexture ) {
+        gl::draw(seamCarvedTexture);
         gradParams->draw();
     }
 }
@@ -242,22 +261,55 @@ void ImageRetargettingApp::segmentButtonClick()
     updateApplication();
 }
 
-void ImageRetargettingApp::gradientButtonClick()
+void ImageRetargettingApp::sobelGradientButtonClick()
 {
-    gradientImage =  seamCarvedImage.clone();
-    gradientTexture = gl::Texture(seamCarver->getGradientImage(gradientImage));
+    showGradient = true;
+    gradientImage =  originalImage.clone();
+    seamCarvedImage = originalImage.clone();
+    seamCarvedTexture = gl::Texture(seamCarvedImage);
+    gradientTexture = gl::Texture(seamCarver->getGradientImage(gradientImage, true));
     updateApplication();
 }
 
-void ImageRetargettingApp::verticalSeamButtonClick(){
-    gradientImage = Surface(gradientTexture);
-    gradientTexture = gl::Texture(seamCarver->getVerticalSeams(gradientImage,seamCarver->nbOfSeams));
+void ImageRetargettingApp::scharrGradientButtonClick()
+{
+    showGradient = true;
+    gradientImage =  originalImage.clone();
+    seamCarvedImage = originalImage.clone();
+    seamCarvedTexture = gl::Texture(seamCarvedImage);
+    gradientTexture = gl::Texture(seamCarver->getGradientImage(gradientImage, false));
     updateApplication();
 }
 
-void ImageRetargettingApp::horizontalSeamButtonClick(){
-    gradientImage = Surface(gradientTexture);
-    gradientTexture = gl::Texture(seamCarver->getHorizontalSeams(gradientImage,seamCarver->nbOfSeams));
+void ImageRetargettingApp::verticalSeamGradientButtonClick(){
+    showGradient = true;
+    //gradientImage = Surface(gradientTexture);
+    seamCarvedImage = originalImage.clone();
+    gradientTexture = gl::Texture(seamCarver->getVerticalSeams(seamCarvedImage,seamCarver->nbOfSeams,showGradient));
+    updateApplication();
+}
+
+void ImageRetargettingApp::horizontalSeamGradientButtonClick(){
+    showGradient = true;
+    //gradientImage = Surface(gradientTexture);
+    seamCarvedImage = originalImage.clone();
+    gradientTexture = gl::Texture(seamCarver->getHorizontalSeams(seamCarvedImage,seamCarver->nbOfSeams,showGradient));
+    updateApplication();
+}
+
+void ImageRetargettingApp::verticalSeamImageButtonClick(){
+    showGradient = false;
+    //seamCarvedImage = Surface(seamCarvedTexture);
+    seamCarvedImage = originalImage.clone();
+    seamCarvedTexture = gl::Texture(seamCarver->getVerticalSeams(seamCarvedImage,seamCarver->nbOfSeams,showGradient));
+    updateApplication();
+}
+
+void ImageRetargettingApp::horizontalSeamImageButtonClick(){
+    showGradient = false;
+    //seamCarvedImage = Surface(seamCarvedTexture);
+    seamCarvedImage = originalImage.clone();
+    seamCarvedTexture = gl::Texture(seamCarver->getHorizontalSeams(seamCarvedImage,seamCarver->nbOfSeams,showGradient));
     updateApplication();
 }
 

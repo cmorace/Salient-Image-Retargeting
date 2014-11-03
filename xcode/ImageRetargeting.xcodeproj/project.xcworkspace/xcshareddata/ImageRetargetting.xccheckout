@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>65E8C2FA-0B4D-46A2-8229-E7E1BC337ACA</string>
+	<key>IDESourceControlProjectName</key>
+	<string>ImageRetargetting</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>9D31AF66FFF4B13E9E9C69A031A2D8AE6A25EC1F</key>
+		<string>https://github.com/cmorace/Salient-Image-Retargeting.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>xcode/ImageRetargetting.xcodeproj</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>9D31AF66FFF4B13E9E9C69A031A2D8AE6A25EC1F</key>
+		<string>../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/cmorace/Salient-Image-Retargeting.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>111</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>9D31AF66FFF4B13E9E9C69A031A2D8AE6A25EC1F</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>9D31AF66FFF4B13E9E9C69A031A2D8AE6A25EC1F</string>
+			<key>IDESourceControlWCCName</key>
+			<string>ImageRetargeting</string>
+		</dict>
+	</array>
+</dict>
+</plist>

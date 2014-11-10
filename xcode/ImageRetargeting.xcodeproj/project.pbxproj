@@ -12,7 +12,7 @@
 		00B784B40FF439BC000DE1D7 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 00B784B00FF439BC000DE1D7 /* AudioToolbox.framework */; };
 		00B784B50FF439BC000DE1D7 /* AudioUnit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 00B784B10FF439BC000DE1D7 /* AudioUnit.framework */; };
 		00B784B60FF439BC000DE1D7 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 00B784B20FF439BC000DE1D7 /* CoreAudio.framework */; };
-		1B9C445908144D2DB2CE2DAD /* ImageRetargettingApp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E08733AD33AC4F61B8CD124B /* ImageRetargettingApp.cpp */; };
+		1B9C445908144D2DB2CE2DAD /* ImageRetargetingApp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E08733AD33AC4F61B8CD124B /* ImageRetargetingApp.cpp */; };
 		5323E6B20EAFCA74003A9687 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5323E6B10EAFCA74003A9687 /* CoreVideo.framework */; };
 		5323E6B60EAFCA7E003A9687 /* QTKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5323E6B50EAFCA7E003A9687 /* QTKit.framework */; };
 		729F79381A0626840036713A /* libopencv_core.2.4.9.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 729F79351A0626840036713A /* libopencv_core.2.4.9.dylib */; };
@@ -35,6 +35,7 @@
 		5323E6B10EAFCA74003A9687 /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = /System/Library/Frameworks/CoreVideo.framework; sourceTree = "<absolute>"; };
 		5323E6B50EAFCA7E003A9687 /* QTKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QTKit.framework; path = /System/Library/Frameworks/QTKit.framework; sourceTree = "<absolute>"; };
 		68E1788618A84E1E83CF3196 /* Resources.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = Resources.h; path = ../include/Resources.h; sourceTree = "<group>"; };
+		720A6AD91A10D886000E5C78 /* MeshWarper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = MeshWarper.h; path = ../include/MeshWarper.h; sourceTree = "<group>"; };
 		729F79211A060DD10036713A /* libopencv_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_core.a; path = ../include/OpenCV/lib/macosx/libopencv_core.a; sourceTree = "<group>"; };
 		729F79221A060DD10036713A /* libopencv_features2d.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_features2d.a; path = ../include/OpenCV/lib/macosx/libopencv_features2d.a; sourceTree = "<group>"; };
 		729F79231A060DD10036713A /* libopencv_imgproc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_imgproc.a; path = ../include/OpenCV/lib/macosx/libopencv_imgproc.a; sourceTree = "<group>"; };
@@ -56,7 +57,7 @@
 		729F79371A0626840036713A /* libopencv_imgproc.2.4.9.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_imgproc.2.4.9.dylib; path = ../../../xCodeProjects/OpenCVLearning/common/libopencv_imgproc.2.4.9.dylib; sourceTree = "<group>"; };
 		729F793B1A0629CA0036713A /* ImageRetargeter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ImageRetargeter.h; path = ../include/ImageRetargeter.h; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* ImageRetargeting.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ImageRetargeting.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		E08733AD33AC4F61B8CD124B /* ImageRetargettingApp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; name = ImageRetargettingApp.cpp; path = ../src/ImageRetargettingApp.cpp; sourceTree = "<group>"; };
+		E08733AD33AC4F61B8CD124B /* ImageRetargetingApp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ImageRetargetingApp.cpp; path = ../src/ImageRetargetingApp.cpp; sourceTree = "<group>"; };
 		EE6D43ADD3CC4F16ACB7A551 /* CinderApp.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; name = CinderApp.icns; path = ../resources/CinderApp.icns; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -92,7 +93,7 @@
 		080E96DDFE201D6D7F000001 /* Source */ = {
 			isa = PBXGroup;
 			children = (
-				E08733AD33AC4F61B8CD124B /* ImageRetargettingApp.cpp */,
+				E08733AD33AC4F61B8CD124B /* ImageRetargetingApp.cpp */,
 			);
 			name = Source;
 			sourceTree = "<group>";
@@ -152,6 +153,7 @@
 				72BA25BE19FFEDB3009962F0 /* Segmentation */,
 				68E1788618A84E1E83CF3196 /* Resources.h */,
 				729F793B1A0629CA0036713A /* ImageRetargeter.h */,
+				720A6AD91A10D886000E5C78 /* MeshWarper.h */,
 			);
 			name = Headers;
 			sourceTree = "<group>";
@@ -268,7 +270,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1B9C445908144D2DB2CE2DAD /* ImageRetargettingApp.cpp in Sources */,
+				1B9C445908144D2DB2CE2DAD /* ImageRetargetingApp.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -291,6 +293,7 @@
 					"$(inherited)",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = "\"$(CINDER_PATH)/boost\"";
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Applications";
 				LIBRARY_SEARCH_PATHS = (
@@ -324,6 +327,7 @@
 					"$(inherited)",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = "\"$(CINDER_PATH)/boost\"";
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Applications";
 				LIBRARY_SEARCH_PATHS = (

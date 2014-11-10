@@ -38,16 +38,26 @@ class GradientSeamCarver {
 public:
     GradientSeamCarver();
     cinder::Surface getGradientImage(cinder::Surface imgData, bool isSobel);
-    //cinder::Surface computeVerticalSeam(cinder::Surface imgData);
-    cinder::Surface getVerticalSeams(cinder::Surface imgData, int nSeams = 1, bool returnGradient=false);
-    cinder::Surface getHorizontalSeams(cinder::Surface imgData, int nSeams = 1, bool returnGradient = false);
+    Mat getGradientImageCV(cinder::Surface imgData, bool isSobel);
+    std::vector<ImageSeam> getVerticalSeams(cinder::Surface img);
+    std::vector<ImageSeam> getHorizontalSeams(cinder::Surface img);
+    cinder::Surface drawVerticalSeams(cinder::Surface imgData, int nSeams = 1, bool returnGradient=false);
+    cinder::Surface drawHorizontalSeams(cinder::Surface imgData, int nSeams = 1, bool returnGradient = false);
     cinder::Surface deleteVerticalSeam(cinder::Surface imgData);
-    int scale;
-    int delta;
+    cinder::Surface deleteHorizontalSeam(cinder::Surface imgData);
+    cinder::Surface deleteMinEnergySeam(cinder::Surface imgData);
+    cinder::Surface addVerticalSeam(cinder::Surface imgData, int nSeams);
+    cinder::Surface addHorizontalSeam(cinder::Surface imgData, int nSeams);
+    
+    unsigned int scale;
+    unsigned int delta;
     
     double gradTime;
     double carveTime;
     unsigned int nbOfSeams;
+    
+    unsigned int newWidth;
+    unsigned int newHeight;
     
 private:
     cinder::Timer* timer;
@@ -55,7 +65,14 @@ private:
     ImageSeam* getBottomToTop(cinder::Surface imgData);
     ImageSeam* getRightToLeft(cinder::Surface imgData);
     ImageSeam* getLeftToRight(cinder::Surface imgData);
+    
+    ImageSeam* getTopToBottom(Mat imgData);
+    ImageSeam* getBottomToTop(Mat imgData);
+    ImageSeam* getRightToLeft(Mat imgData);
+    ImageSeam* getLeftToRight(Mat imgData);
+    
     void drawSeams(cinder::Surface imgData, int nSeams, std::vector<ImageSeam> seamVector);
+    cinder::Surface carveSeam(cinder::Surface imgData, std::vector<ImageSeam>::iterator seam);
     bool isSobel = true;
 };
 
@@ -66,10 +83,12 @@ GradientSeamCarver::GradientSeamCarver()
     scale = 1;
     delta = 50;
     
-    gradTime = 0;
-    gradTime = 0;
-    nbOfSeams = 10;
+    gradTime = 0.0;
+    carveTime = 0.0;
+    nbOfSeams = 1;
     
+    newWidth =100;
+    newHeight =100;
 }
 
 
@@ -120,6 +139,51 @@ cinder::Surface GradientSeamCarver::getGradientImage(cinder::Surface imgData, bo
     return cinder::Surface(cinder::fromOcv(grad));
 }
 
+Mat GradientSeamCarver::getGradientImageCV(cinder::Surface imgData, bool isSobel)
+{
+    this->isSobel = isSobel;
+    Mat src, src_gray;
+    
+    Mat grad;
+    
+    int ddepth = CV_16S;
+    
+    src = cinder::toOcv(imgData);
+    timer->start();
+    GaussianBlur( src, src, cv::Size(3,3), 0, 0, BORDER_DEFAULT );
+    
+    /// Convert it to gray
+    cvtColor( src, src_gray, CV_RGB2GRAY );
+    
+    /// Generate grad_x and grad_y
+    Mat grad_x, grad_y;
+    Mat abs_grad_x, abs_grad_y;
+    
+    /// Gradient X
+    if(isSobel){
+        Sobel( src_gray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+    }
+    else{
+        Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+    }
+    //
+    convertScaleAbs( grad_x, abs_grad_x );
+    
+    /// Gradient Y
+    if(isSobel){
+        Sobel( src_gray, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+    }
+    else{
+        Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
+    }
+    convertScaleAbs( grad_y, abs_grad_y );
+    
+    /// Total Gradient (approximate)
+    addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
+    timer->stop();
+    gradTime = timer->getSeconds();
+    return grad;
+}
 
 
 void GradientSeamCarver::drawSeams(cinder::Surface imgData, int nSeams, std::vector<ImageSeam> seamVector)
@@ -165,44 +229,98 @@ void GradientSeamCarver::drawSeams(cinder::Surface imgData, int nSeams, std::vec
     }
 }
 
-
-cinder::Surface GradientSeamCarver::getVerticalSeams(cinder::Surface img, int nSeams,bool returnGrad)
+cinder::Surface GradientSeamCarver::carveSeam(cinder::Surface imgData, std::vector<ImageSeam>::iterator seam)
 {
-    cinder::Surface imgData = getGradientImage(img.clone(),this->isSobel);
-    //
-    timer->start();
-    int w = imgData.getWidth();
-    ImageSeam* verticalSeam_bt = getBottomToTop(imgData);
-    ImageSeam* verticalSeam_tb = getTopToBottom(imgData);
-    ImageSeam* verticalSeams = new ImageSeam[2*w];
-    for(int i=0; i<w; i++){
-        verticalSeams[2*i] = verticalSeam_bt[i];
-        verticalSeams[2*i+1] = verticalSeam_tb[i];
-    }
     
-    std::vector<ImageSeam> c(verticalSeams, verticalSeams + 2*w);
-    std::sort (c.begin(), c.end(), compareImageSeam);
-    timer->stop();
-    carveTime  = timer->getSeconds();
-    //
-    if(returnGrad){
-        drawSeams(imgData, nSeams, c);
-        return imgData;
+    //ci::ColorT<uchar>* g = new ci::ColorT<uchar>(0,255,0);
+    int h = imgData.getHeight();
+    int w = imgData.getWidth();
+    cinder::Surface s;
+    
+    if(seam->isVerticalSeam){
+        s = cinder::Surface(w-1,h,false);
+        int seamX = seam->index;
+        if(seam->isForwardSeam){
+            for(int y=h-1; y>=0; y--){
+                for (int x = 0; x<w-1; x++) {
+                    if(x<seamX){
+                        s.setPixel(cinder::Vec2i(x,y), imgData.getPixel(cinder::Vec2i(x,y)));
+                    }
+                    else{
+                        s.setPixel(cinder::Vec2i(x,y), imgData.getPixel(cinder::Vec2i(x+1,y)));
+                    }
+                }
+                seamX += seam->seamPath[y*w+seamX];
+            }
+        }
+        else{
+            for(int y=0; y<h; y++){
+                for (int x = 0; x<w-1; x++) {
+                    if(x<seamX){
+                        s.setPixel(cinder::Vec2i(x,y), imgData.getPixel(cinder::Vec2i(x,y)));
+                    }
+                    else{
+                        s.setPixel(cinder::Vec2i(x,y), imgData.getPixel(cinder::Vec2i(x+1,y)));
+                    }
+                }
+                seamX += seam->seamPath[y*w+seamX];
+            }
+        }
     }
     else{
-        drawSeams(img, nSeams, c);
-        return img;
+        s = cinder::Surface(w,h-1,false);
+        int seamY = seam->index;
+        if(seam->isForwardSeam){
+            for(int x=w-1; x>=0; x--){
+                for (int y = 0; y<h-1; y++) {
+                    if(y<seamY){
+                        s.setPixel(cinder::Vec2i(x,y), imgData.getPixel(cinder::Vec2i(x,y)));
+                    }
+                    else{
+                        s.setPixel(cinder::Vec2i(x,y), imgData.getPixel(cinder::Vec2i(x,y+1)));
+                    }
+                }
+                seamY += seam->seamPath[seamY*w+x];
+            }
+        }
+        else{
+            for(int x=0; x<w; x++){
+                for (int y = 0; y<h-1; y++) {
+                    if(y<seamY){
+                        s.setPixel(cinder::Vec2i(x,y), imgData.getPixel(cinder::Vec2i(x,y)));
+                    }
+                    else{
+                        s.setPixel(cinder::Vec2i(x,y), imgData.getPixel(cinder::Vec2i(x,y+1)));
+                    }
+                }
+                seamY += seam->seamPath[seamY*w+x];
+            }
+        }
     }
-
-    
-    
+    return s;
 }
 
-cinder::Surface GradientSeamCarver::getHorizontalSeams(cinder::Surface img, int nSeams, bool returnGrad)
+std::vector<ImageSeam> GradientSeamCarver::getVerticalSeams(cinder::Surface imgData)
 {
-    cinder::Surface imgData = getGradientImage(img.clone(),this->isSobel);
-    //
-    timer->start();
+   //test
+    //Mat img = cinder::toOcv(imgData);
+    int w = imgData.getWidth();
+    ImageSeam* vertSeam_tb = getTopToBottom(imgData);
+    ImageSeam* vertSeam_bt = getBottomToTop(imgData);
+    ImageSeam* vertSeam = new ImageSeam[2*w];
+    
+    for(int i=0; i<w; i++){
+        vertSeam[2*i] = vertSeam_tb[i];
+        vertSeam[2*i+1] = vertSeam_bt[i];
+    }
+    
+    std::vector<ImageSeam> c(vertSeam, vertSeam + 2*w);
+    std::sort (c.begin(), c.end(), compareImageSeam);
+    return c;
+}
+
+std::vector<ImageSeam> GradientSeamCarver::getHorizontalSeams(cinder::Surface imgData)
+{
     int h = imgData.getHeight();
     ImageSeam* horizSeam_lr = getLeftToRight(imgData);
     ImageSeam* horizSeam_rl = getRightToLeft(imgData);
@@ -216,6 +334,34 @@ cinder::Surface GradientSeamCarver::getHorizontalSeams(cinder::Surface img, int 
     std::vector<ImageSeam> c(horizSeams, horizSeams + 2*h);
     std::sort (c.begin(), c.end(), compareImageSeam);
     
+    return c;
+}
+
+cinder::Surface GradientSeamCarver::drawVerticalSeams(cinder::Surface img, int nSeams,bool returnGrad)
+{
+    cinder::Surface imgData = getGradientImage(img.clone(),this->isSobel);
+    //
+    timer->start();
+    std::vector<ImageSeam> c = getVerticalSeams(imgData);
+    timer->stop();
+    carveTime  = timer->getSeconds();
+    //
+    if(returnGrad){
+        drawSeams(imgData, nSeams, c);
+        return imgData;
+    }
+    else{
+        drawSeams(img, nSeams, c);
+        return img;
+    }
+}
+
+cinder::Surface GradientSeamCarver::drawHorizontalSeams(cinder::Surface img, int nSeams, bool returnGrad)
+{
+    cinder::Surface imgData = getGradientImage(img.clone(),this->isSobel);
+    //
+    timer->start();
+    std::vector<ImageSeam> c = getHorizontalSeams(imgData);
     timer->stop();
     carveTime  = timer->getSeconds();
     
@@ -229,93 +375,61 @@ cinder::Surface GradientSeamCarver::getHorizontalSeams(cinder::Surface img, int 
     }
 }
 
-
-cinder::Surface GradientSeamCarver::deleteVerticalSeam(cinder::Surface imgData)
+cinder::Surface GradientSeamCarver::deleteVerticalSeam(cinder::Surface img)
 {
-    int w = imgData.getWidth();
-    int h = imgData.getHeight();
-    int seamPath[w*h];
-    ImageSeam* verticalSeam = new ImageSeam[w];
-    
-    for(int x=0; x<w; x++){
-        seamPath[x] = 0;
-        verticalSeam[x] = ImageSeam();
-        verticalSeam[x].index = x;
-        verticalSeam[x].preValue = (imgData.getPixel(ci::Vec2i(x,0))).b;
-        verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,0))).b;
-    }
-    
-    for(int y=1; y<h; y++){
-        for(int x=0; x<w; x++){
-            
-            if(x==0){//First Column
-                if(verticalSeam[x].preValue <= verticalSeam[x+1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
-                    seamPath[y*w+x] = 0;
-                }
-                else{
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
-                    seamPath[y*w+x] = 1;
-                }
-                
-            }
-            else if (x == w-1){ //Last Column
-                if(verticalSeam[x].preValue <= verticalSeam[x-1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
-                    seamPath[y*w+x] = 0;
-                }
-                else{
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
-                    seamPath[y*w+x] = -1;
-                }
-            }
-            else{ //Interior Column
-                if(verticalSeam[x-1].preValue <= verticalSeam[x].preValue && verticalSeam[x-1].preValue <= verticalSeam[x+1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
-                    seamPath[y*w+x] = -1;
-                }
-                else if(verticalSeam[x].preValue <= verticalSeam[x+1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
-                    seamPath[y*w+x] = 0;
-                }
-                else{
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
-                    seamPath[y*w+x] = 1;
-                }
-            }
-            
-        }
-        for(int x=0; x<w; x++){
-            verticalSeam[x].preValue = verticalSeam[x].totalValue;
-        }
-    }
-    
-    std::vector<ImageSeam> myvector (verticalSeam, verticalSeam+w);
-    std::sort (myvector.begin(), myvector.end(), compareImageSeam);
-    
-    ci::Surface s = cinder::Surface(w-1,h,false);
-    
-    for (std::vector<ImageSeam>::iterator it=myvector.begin(); it!=myvector.begin() + 1; ++it)
-    {
-        int seamX = it->index;
-        for(int y=h-1; y>=0; y--){
-            //s.setPixel(ci::Vec2i(x,y), *r);
-            
-            for (int x = 0; x<w-1; x++) {
-                if(x>=seamX){
-                    s.setPixel(ci::Vec2i(x,y), imgData.getPixel(ci::Vec2i(x+1,y)));
-                }
-                else{
-                  s.setPixel(ci::Vec2i(x,y), imgData.getPixel(ci::Vec2i(x,y)));  
-                }
-            }
-            seamX += seamPath[y*w+seamX];
-        }
-    }
-    return s;
+   
+    cinder::Surface imgData = getGradientImage(img.clone(),this->isSobel);
+    timer->start();
+    std::vector<ImageSeam> c = getVerticalSeams(imgData);
+    carveTime  = timer->getSeconds();
+    img = carveSeam(img, c.begin());
+    return img;
 }
 
+cinder::Surface GradientSeamCarver::deleteHorizontalSeam(cinder::Surface img)
+{
+    cinder::Surface imgData = getGradientImage(img.clone(),this->isSobel);
+    //
+    timer->start();
+    std::vector<ImageSeam> c = getHorizontalSeams(imgData);
+    timer->stop();
+    carveTime  = timer->getSeconds();
+    img = carveSeam(img, c.begin());
+    return img;
+}
 
+cinder::Surface GradientSeamCarver::deleteMinEnergySeam(cinder::Surface img){
+    cinder::Surface imgData = getGradientImage(img.clone(),this->isSobel);
+    //
+    timer->start();
+    std::vector<ImageSeam> a = getHorizontalSeams(imgData);
+    std::vector<ImageSeam> b = getVerticalSeams(imgData);
+    timer->stop();
+    carveTime  = timer->getSeconds();
+    std::vector<ImageSeam>::iterator aSeam =  a.begin();
+    std::vector<ImageSeam>::iterator bSeam =  b.begin();
+    if(1.f*aSeam->totalValue/img.getWidth() > 1.f*bSeam->totalValue/img.getHeight()){
+      img = carveSeam(img, aSeam);
+    }
+    else{
+      img = carveSeam(img, bSeam);
+    }
+    
+    return img;
+}
+
+cinder::Surface GradientSeamCarver::addVerticalSeam(cinder::Surface imgData, int nSeams)
+{
+    return imgData;
+}
+
+cinder::Surface GradientSeamCarver::addHorizontalSeam(cinder::Surface imgData, int nSeams)
+{
+    return imgData;
+}
+
+// Get Seams in all 4 direction
+//========================================================================
 ImageSeam* GradientSeamCarver::getTopToBottom(cinder::Surface imgData)
 {
     int w = imgData.getWidth();
@@ -324,7 +438,7 @@ ImageSeam* GradientSeamCarver::getTopToBottom(cinder::Surface imgData)
     ImageSeam* verticalSeam = new ImageSeam[w];
     
     for(int x=0; x<w; x++){
-        seamPath[x] = 0;
+        //seamPath[x] = 0;
         verticalSeam[x] = ImageSeam();
         verticalSeam[x].index = x;
         verticalSeam[x].preValue = (imgData.getPixel(ci::Vec2i(x,0))).b;
@@ -338,33 +452,33 @@ ImageSeam* GradientSeamCarver::getTopToBottom(cinder::Surface imgData)
         for(int x=0; x<w; x++){
             
             if(x==0){//First Column
-                if(verticalSeam[x].preValue <= verticalSeam[x+1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
+                if(verticalSeam[x].preValue < verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
                     seamPath[y*w+x] = 1;
                 }
                 
             }
             else if (x == w-1){ //Last Column
-                if(verticalSeam[x].preValue <= verticalSeam[x-1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
+                if(verticalSeam[x].preValue < verticalSeam[x-1].preValue){
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
                     seamPath[y*w+x] = -1;
                 }
             }
             else{ //Interior Column
                 if(verticalSeam[x-1].preValue <= verticalSeam[x].preValue && verticalSeam[x-1].preValue <= verticalSeam[x+1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
                     seamPath[y*w+x] = -1;
                 }
-                else if(verticalSeam[x].preValue <= verticalSeam[x+1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
+                else if(verticalSeam[x].preValue < verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
@@ -381,6 +495,7 @@ ImageSeam* GradientSeamCarver::getTopToBottom(cinder::Surface imgData)
     return verticalSeam;
 }
 
+
 ImageSeam* GradientSeamCarver::getBottomToTop(cinder::Surface imgData)
 {
     int w = imgData.getWidth();
@@ -389,7 +504,7 @@ ImageSeam* GradientSeamCarver::getBottomToTop(cinder::Surface imgData)
     ImageSeam* verticalSeam = new ImageSeam[w];
     
     for(int x=0; x<w; x++){
-        seamPath[(w-1)*h + x] = 0;
+       // seamPath[(w-1)*h + x] = 0;
         verticalSeam[x] = ImageSeam();
         verticalSeam[x].index = x;
         verticalSeam[x].preValue = (imgData.getPixel(ci::Vec2i(x,h-1))).b;
@@ -403,49 +518,50 @@ ImageSeam* GradientSeamCarver::getBottomToTop(cinder::Surface imgData)
         for(int x=0; x<w; x++){
             
             if(x==0){//First Column
-                if(verticalSeam[x].preValue <= verticalSeam[x+1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
+                if(verticalSeam[x].preValue < verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
                     seamPath[y*w+x] = 1;
                 }
                 
             }
             else if (x == w-1){ //Last Column
-                if(verticalSeam[x].preValue <= verticalSeam[x-1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
+                if(verticalSeam[x].preValue < verticalSeam[x-1].preValue){
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
                     seamPath[y*w+x] = 0;
                     
                 }
                 else{
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
                     seamPath[y*w+x] = -1;
                 }
             }
             else{ //Interior Column
                 if(verticalSeam[x-1].preValue <= verticalSeam[x].preValue && verticalSeam[x-1].preValue <= verticalSeam[x+1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
                     seamPath[y*w+x] = -1;
                 }
-                else if(verticalSeam[x].preValue <= verticalSeam[x+1].preValue){
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
+                else if(verticalSeam[x].preValue < verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
-                    verticalSeam[x].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
+                    verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
                     seamPath[y*w+x] = 1;
                 }
             }
-            
-        }
-        for(int x=0; x<w; x++){
+        }for(int x=0; x<w; x++){
             verticalSeam[x].preValue = verticalSeam[x].totalValue;
+           // printf("\nverticalSeam[%d].totalValue = %d",x,verticalSeam[x].totalValue);
         }
+        //printf("\n\n");
     }
     return verticalSeam;
 }
+
 
 ImageSeam* GradientSeamCarver::getLeftToRight(cinder::Surface imgData)
 {
@@ -470,36 +586,36 @@ ImageSeam* GradientSeamCarver::getLeftToRight(cinder::Surface imgData)
             
             if(y==0){//First Row
                 if(verticalSeam[y].preValue <= verticalSeam[y+1].preValue){
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
                     seamPath[y*w+x] = 1;
                 }
                 
             }
             else if (y == h-1){ //Last Row
                 if(verticalSeam[y].preValue <= verticalSeam[y-1].preValue){
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
                     seamPath[y*w+x] = -1;
                 }
             }
             else{ //Interior Column
                 if(verticalSeam[y-1].preValue <= verticalSeam[y].preValue && verticalSeam[y-1].preValue <= verticalSeam[y+1].preValue){
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
                     seamPath[y*w+x] = -1;
                 }
                 else if(verticalSeam[y].preValue <= verticalSeam[y+1].preValue){
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
                     seamPath[y*w+x] = 1;
                 }
             }
@@ -512,6 +628,7 @@ ImageSeam* GradientSeamCarver::getLeftToRight(cinder::Surface imgData)
     return verticalSeam;
 }
 
+
 ImageSeam* GradientSeamCarver::getRightToLeft(cinder::Surface imgData)
 {
     int w = imgData.getWidth();
@@ -519,6 +636,284 @@ ImageSeam* GradientSeamCarver::getRightToLeft(cinder::Surface imgData)
     int* seamPath = new int[w*h];
     ImageSeam* verticalSeam = new ImageSeam[h];
     
+    //fill right row with 0
+    for(int y=0; y<h; y++){
+        seamPath[w*y+w-1] = 0;
+        verticalSeam[y] = ImageSeam();
+        verticalSeam[y].index = y;
+        verticalSeam[y].preValue = (imgData.getPixel(ci::Vec2i(w-1,y))).b/255.0f;
+        verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(w-1,y))).b/255.0f;
+        verticalSeam[y].isVerticalSeam = false;
+        verticalSeam[y].isForwardSeam = false;
+        verticalSeam[y].seamPath = seamPath;
+    }
+    
+    //start with row 1 from right
+    for(int x=w-2; x>=0; x--){
+        for(int y=0; y<h; y++){
+            
+            if(y==0){//First Row
+                if(verticalSeam[y].preValue <= verticalSeam[y+1].preValue){
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    seamPath[y*w+x] = 0;
+                }
+                else{
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
+                    seamPath[y*w+x] = 1;
+                }
+                
+            }
+            else if (y == h-1){ //Last Row
+                if(verticalSeam[y].preValue <= verticalSeam[y-1].preValue){
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    seamPath[y*w+x] = 0;
+                    
+                }
+                else{
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
+                    seamPath[y*w+x] = -1;
+                }
+            }
+            else{ //Interior Rows
+                if(verticalSeam[y-1].preValue <= verticalSeam[y].preValue && verticalSeam[y-1].preValue <= verticalSeam[y+1].preValue){
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
+                    seamPath[y*w+x] = -1;
+                }
+                else if(verticalSeam[y].preValue <= verticalSeam[y+1].preValue){
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    seamPath[y*w+x] = 0;
+                }
+                else{
+                    verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
+                    seamPath[y*w+x] = 1;
+                }
+            }
+            
+        }
+        for(int y=0; y<h; y++){
+            verticalSeam[y].preValue = verticalSeam[y].totalValue;
+        }
+    }
+    return verticalSeam;
+}
+
+
+///
+
+ImageSeam* GradientSeamCarver::getTopToBottom(Mat img)
+{
+    int w = img.rows;
+    int h = img.cols;
+    uchar* raster = img.data;
+    int* seamPath = new int[w*h];
+    ImageSeam* verticalSeam = new ImageSeam[w];
+    
+    for(int x=0; x<w; x++){
+        //seamPath[x] = 0;
+        verticalSeam[x] = ImageSeam();
+        verticalSeam[x].index = x;
+        verticalSeam[x].preValue = raster[x]/255.0f;
+        verticalSeam[x].totalValue = raster[x]/255.0f;
+        verticalSeam[x].isVerticalSeam = true;
+        verticalSeam[x].isForwardSeam = true;
+        verticalSeam[x].seamPath = seamPath;
+    }
+    
+    for(int y=1; y<h; y++){
+        for(int x=0; x<w; x++){
+            
+            if(x==0){//First Column
+                if(verticalSeam[x].preValue < verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue = raster[y * w + x] + verticalSeam[x].preValue;
+                    seamPath[y * w + x] = 0;
+                }
+                else{
+                    verticalSeam[x].totalValue = raster[y * w + x] + verticalSeam[x+1].preValue;
+                    seamPath[y*w+x] = 1;
+                }
+                
+            }
+            else if (x == w-1){ //Last Column
+                if(verticalSeam[x].preValue < verticalSeam[x-1].preValue){
+                    verticalSeam[x].totalValue = raster[y * w + x] + verticalSeam[x].preValue;
+                    seamPath[y*w+x] = 0;
+                }
+                else{
+                    verticalSeam[x].totalValue = raster[y * w + x] + verticalSeam[x-1].preValue;
+                    seamPath[y*w+x] = -1;
+                }
+            }
+            else{ //Interior Column
+                if(verticalSeam[x-1].preValue <= verticalSeam[x].preValue && verticalSeam[x-1].preValue <= verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue = raster[y * w + x] + verticalSeam[x-1].preValue;
+                    seamPath[y*w+x] = -1;
+                }
+                else if(verticalSeam[x].preValue < verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue = raster[y * w + x] + verticalSeam[x].preValue;
+                    seamPath[y*w+x] = 0;
+                }
+                else{
+                    verticalSeam[x].totalValue = raster[y * w + x] + verticalSeam[x+1].preValue;
+                    seamPath[y*w+x] = 1;
+                }
+            }
+            
+        }
+        for(int x=0; x<w; x++){
+            verticalSeam[x].preValue = verticalSeam[x].totalValue;
+            printf("\nverticalSeam[x].totalValue = %f",verticalSeam[x].totalValue);
+        }
+        printf("\n\n");
+    }
+    return verticalSeam;
+}
+
+
+ImageSeam* GradientSeamCarver::getBottomToTop(Mat img)
+{
+    int w = img.rows;
+    int h = img.cols;
+    uchar* raster = img.data;
+    int* seamPath = new int[w*h];
+    ImageSeam* verticalSeam = new ImageSeam[w];
+    /*
+    for(int x=0; x<w; x++){
+        // seamPath[(w-1)*h + x] = 0;
+        verticalSeam[x] = ImageSeam();
+        verticalSeam[x].index = x;
+        verticalSeam[x].preValue = (imgData.getPixel(ci::Vec2i(x,h-1))).b;
+        verticalSeam[x].totalValue = (imgData.getPixel(ci::Vec2i(x,h-1))).b;
+        verticalSeam[x].isVerticalSeam = true;
+        verticalSeam[x].isForwardSeam = false;
+        verticalSeam[x].seamPath = seamPath;
+    }
+    
+    for(int y=h-2; y>=0; y--){
+        for(int x=0; x<w; x++){
+            
+            if(x==0){//First Column
+                if(verticalSeam[x].preValue < verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
+                    seamPath[y*w+x] = 0;
+                }
+                else{
+                    verticalSeam[x].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
+                    seamPath[y*w+x] = 1;
+                }
+                
+            }
+            else if (x == w-1){ //Last Column
+                if(verticalSeam[x].preValue < verticalSeam[x-1].preValue){
+                    verticalSeam[x].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
+                    seamPath[y*w+x] = 0;
+                    
+                }
+                else{
+                    verticalSeam[x].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
+                    seamPath[y*w+x] = -1;
+                }
+            }
+            else{ //Interior Column
+                if(verticalSeam[x-1].preValue <= verticalSeam[x].preValue && verticalSeam[x-1].preValue <= verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x-1].preValue;
+                    seamPath[y*w+x] = -1;
+                }
+                else if(verticalSeam[x].preValue < verticalSeam[x+1].preValue){
+                    verticalSeam[x].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x].preValue;
+                    seamPath[y*w+x] = 0;
+                }
+                else{
+                    verticalSeam[x].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[x+1].preValue;
+                    seamPath[y*w+x] = 1;
+                }
+            }
+        }
+        for(int x=0; x<w; x++){
+            verticalSeam[x].preValue = verticalSeam[x].totalValue;
+        }
+    }
+     */
+    return verticalSeam;
+}
+
+
+ImageSeam* GradientSeamCarver::getLeftToRight(Mat img)
+{
+    int w = img.rows;
+    int h = img.cols;
+    uchar* raster = img.data;
+    int* seamPath = new int[w*h];
+    ImageSeam* verticalSeam = new ImageSeam[h];
+    /*
+    for(int y=0; y<h; y++){
+        seamPath[y] = 0;
+        verticalSeam[y] = ImageSeam();
+        verticalSeam[y].index = y;
+        verticalSeam[y].preValue = (imgData.getPixel(ci::Vec2i(0,y))).b;
+        verticalSeam[y].totalValue = (imgData.getPixel(ci::Vec2i(0,y))).b;
+        verticalSeam[y].isVerticalSeam = false;
+        verticalSeam[y].isForwardSeam = true;
+        verticalSeam[y].seamPath = seamPath;
+    }
+    
+    for(int x=1; x<w; x++){
+        for(int y=0; y<h; y++){
+            
+            if(y==0){//First Row
+                if(verticalSeam[y].preValue <= verticalSeam[y+1].preValue){
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    seamPath[y*w+x] = 0;
+                }
+                else{
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
+                    seamPath[y*w+x] = 1;
+                }
+                
+            }
+            else if (y == h-1){ //Last Row
+                if(verticalSeam[y].preValue <= verticalSeam[y-1].preValue){
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    seamPath[y*w+x] = 0;
+                }
+                else{
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
+                    seamPath[y*w+x] = -1;
+                }
+            }
+            else{ //Interior Column
+                if(verticalSeam[y-1].preValue <= verticalSeam[y].preValue && verticalSeam[y-1].preValue <= verticalSeam[y+1].preValue){
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
+                    seamPath[y*w+x] = -1;
+                }
+                else if(verticalSeam[y].preValue <= verticalSeam[y+1].preValue){
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    seamPath[y*w+x] = 0;
+                }
+                else{
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
+                    seamPath[y*w+x] = 1;
+                }
+            }
+            
+        }
+        for(int y=0; y<h; y++){
+            verticalSeam[y].preValue = verticalSeam[y].totalValue;
+        }
+    }
+     */
+    return verticalSeam;
+}
+
+
+ImageSeam* GradientSeamCarver::getRightToLeft(Mat img)
+{
+    
+    int w = img.rows;
+    int h = img.cols;
+    uchar* raster = img.data;
+    int* seamPath = new int[w*h];
+    ImageSeam* verticalSeam = new ImageSeam[h];
+    /*
     //fill right row with 0
     for(int y=0; y<h; y++){
         seamPath[w*y+w-1] = 0;
@@ -537,37 +932,37 @@ ImageSeam* GradientSeamCarver::getRightToLeft(cinder::Surface imgData)
             
             if(y==0){//First Row
                 if(verticalSeam[y].preValue <= verticalSeam[y+1].preValue){
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
                     seamPath[y*w+x] = 1;
                 }
                 
             }
             else if (y == h-1){ //Last Row
                 if(verticalSeam[y].preValue <= verticalSeam[y-1].preValue){
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
                     seamPath[y*w+x] = 0;
                     
                 }
                 else{
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
                     seamPath[y*w+x] = -1;
                 }
             }
             else{ //Interior Rows
                 if(verticalSeam[y-1].preValue <= verticalSeam[y].preValue && verticalSeam[y-1].preValue <= verticalSeam[y+1].preValue){
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y-1].preValue;
                     seamPath[y*w+x] = -1;
                 }
                 else if(verticalSeam[y].preValue <= verticalSeam[y+1].preValue){
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y].preValue;
                     seamPath[y*w+x] = 0;
                 }
                 else{
-                    verticalSeam[y].totalValue += (imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
+                    verticalSeam[y].totalValue += imgData.getPixel(ci::Vec2i(x,y))).b + verticalSeam[y+1].preValue;
                     seamPath[y*w+x] = 1;
                 }
             }
@@ -577,6 +972,7 @@ ImageSeam* GradientSeamCarver::getRightToLeft(cinder::Surface imgData)
             verticalSeam[y].preValue = verticalSeam[y].totalValue;
         }
     }
+     */
     return verticalSeam;
 }
 

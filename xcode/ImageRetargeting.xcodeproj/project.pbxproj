@@ -18,6 +18,10 @@
 		729F79381A0626840036713A /* libopencv_core.2.4.9.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 729F79351A0626840036713A /* libopencv_core.2.4.9.dylib */; };
 		729F79391A0626840036713A /* libopencv_highgui.2.4.9.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 729F79361A0626840036713A /* libopencv_highgui.2.4.9.dylib */; };
 		729F793A1A0626840036713A /* libopencv_imgproc.2.4.9.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 729F79371A0626840036713A /* libopencv_imgproc.2.4.9.dylib */; };
+		72E7D9F21A127771009F6E60 /* Warp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72E7D9EE1A127771009F6E60 /* Warp.cpp */; };
+		72E7D9F31A127771009F6E60 /* WarpBilinear.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72E7D9EF1A127771009F6E60 /* WarpBilinear.cpp */; };
+		72E7D9F41A127771009F6E60 /* WarpPerspective.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72E7D9F01A127771009F6E60 /* WarpPerspective.cpp */; };
+		72E7D9F51A127771009F6E60 /* WarpPerspectiveBilinear.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72E7D9F11A127771009F6E60 /* WarpPerspectiveBilinear.cpp */; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		B111AED08B48451291B4BEA9 /* CinderApp.icns in Resources */ = {isa = PBXBuildFile; fileRef = EE6D43ADD3CC4F16ACB7A551 /* CinderApp.icns */; };
 /* End PBXBuildFile section */
@@ -39,16 +43,6 @@
 		729F79211A060DD10036713A /* libopencv_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_core.a; path = ../include/OpenCV/lib/macosx/libopencv_core.a; sourceTree = "<group>"; };
 		729F79221A060DD10036713A /* libopencv_features2d.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_features2d.a; path = ../include/OpenCV/lib/macosx/libopencv_features2d.a; sourceTree = "<group>"; };
 		729F79231A060DD10036713A /* libopencv_imgproc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_imgproc.a; path = ../include/OpenCV/lib/macosx/libopencv_imgproc.a; sourceTree = "<group>"; };
-		729F79281A061C240036713A /* convolve.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = convolve.h; path = ../../include/Segmentation/convolve.h; sourceTree = "<group>"; };
-		729F79291A061C240036713A /* disjoint-set.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "disjoint-set.h"; path = "../../include/Segmentation/disjoint-set.h"; sourceTree = "<group>"; };
-		729F792A1A061C240036713A /* filter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = filter.h; path = ../../include/Segmentation/filter.h; sourceTree = "<group>"; };
-		729F792B1A061C240036713A /* image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = image.h; path = ../../include/Segmentation/image.h; sourceTree = "<group>"; };
-		729F792C1A061C240036713A /* imconv.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imconv.h; path = ../../include/Segmentation/imconv.h; sourceTree = "<group>"; };
-		729F792D1A061C240036713A /* imutil.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imutil.h; path = ../../include/Segmentation/imutil.h; sourceTree = "<group>"; };
-		729F792E1A061C240036713A /* misc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = misc.h; path = ../../include/Segmentation/misc.h; sourceTree = "<group>"; };
-		729F792F1A061C240036713A /* pnmfile.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = pnmfile.h; path = ../../include/Segmentation/pnmfile.h; sourceTree = "<group>"; };
-		729F79301A061C240036713A /* segment-graph.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "segment-graph.h"; path = "../../include/Segmentation/segment-graph.h"; sourceTree = "<group>"; };
-		729F79311A061C240036713A /* segment-image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "segment-image.h"; path = "../../include/Segmentation/segment-image.h"; sourceTree = "<group>"; };
 		729F79321A061C570036713A /* CinderOpenCV.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = CinderOpenCV.h; path = ../include/OpenCV/include/CinderOpenCV.h; sourceTree = "<group>"; };
 		729F79331A061C630036713A /* GradientSeamCarver.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GradientSeamCarver.h; path = ../include/GradientSeamCarver.h; sourceTree = "<group>"; };
 		729F79341A061C6D0036713A /* SaliencySegmentor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = SaliencySegmentor.h; path = ../include/SaliencySegmentor.h; sourceTree = "<group>"; };
@@ -56,6 +50,14 @@
 		729F79361A0626840036713A /* libopencv_highgui.2.4.9.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_highgui.2.4.9.dylib; path = ../../../xCodeProjects/OpenCVLearning/common/libopencv_highgui.2.4.9.dylib; sourceTree = "<group>"; };
 		729F79371A0626840036713A /* libopencv_imgproc.2.4.9.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_imgproc.2.4.9.dylib; path = ../../../xCodeProjects/OpenCVLearning/common/libopencv_imgproc.2.4.9.dylib; sourceTree = "<group>"; };
 		729F793B1A0629CA0036713A /* ImageRetargeter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ImageRetargeter.h; path = ../include/ImageRetargeter.h; sourceTree = "<group>"; };
+		72E7D9E91A127771009F6E60 /* Warp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Warp.h; sourceTree = "<group>"; };
+		72E7D9EA1A127771009F6E60 /* WarpBilinear.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WarpBilinear.h; sourceTree = "<group>"; };
+		72E7D9EB1A127771009F6E60 /* WarpPerspective.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WarpPerspective.h; sourceTree = "<group>"; };
+		72E7D9EC1A127771009F6E60 /* WarpPerspectiveBilinear.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WarpPerspectiveBilinear.h; sourceTree = "<group>"; };
+		72E7D9EE1A127771009F6E60 /* Warp.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Warp.cpp; sourceTree = "<group>"; };
+		72E7D9EF1A127771009F6E60 /* WarpBilinear.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WarpBilinear.cpp; sourceTree = "<group>"; };
+		72E7D9F01A127771009F6E60 /* WarpPerspective.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WarpPerspective.cpp; sourceTree = "<group>"; };
+		72E7D9F11A127771009F6E60 /* WarpPerspectiveBilinear.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WarpPerspectiveBilinear.cpp; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* ImageRetargeting.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ImageRetargeting.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E08733AD33AC4F61B8CD124B /* ImageRetargetingApp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ImageRetargetingApp.cpp; path = ../src/ImageRetargetingApp.cpp; sourceTree = "<group>"; };
 		EE6D43ADD3CC4F16ACB7A551 /* CinderApp.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; name = CinderApp.icns; path = ../resources/CinderApp.icns; sourceTree = "<group>"; };
@@ -146,11 +148,10 @@
 		29B97315FDCFA39411CA2CEA /* Headers */ = {
 			isa = PBXGroup;
 			children = (
+				72E7D9E71A127771009F6E60 /* Warping */,
 				729F79341A061C6D0036713A /* SaliencySegmentor.h */,
 				729F79331A061C630036713A /* GradientSeamCarver.h */,
 				729F79321A061C570036713A /* CinderOpenCV.h */,
-				72A6B6D71A03FAD400024613 /* Saliency */,
-				72BA25BE19FFEDB3009962F0 /* Segmentation */,
 				68E1788618A84E1E83CF3196 /* Resources.h */,
 				729F793B1A0629CA0036713A /* ImageRetargeter.h */,
 				720A6AD91A10D886000E5C78 /* MeshWarper.h */,
@@ -182,28 +183,36 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		72A6B6D71A03FAD400024613 /* Saliency */ = {
+		72E7D9E71A127771009F6E60 /* Warping */ = {
 			isa = PBXGroup;
 			children = (
+				72E7D9E81A127771009F6E60 /* include */,
+				72E7D9ED1A127771009F6E60 /* src */,
 			);
-			name = Saliency;
+			name = Warping;
+			path = ../include/Warping;
 			sourceTree = "<group>";
 		};
-		72BA25BE19FFEDB3009962F0 /* Segmentation */ = {
+		72E7D9E81A127771009F6E60 /* include */ = {
 			isa = PBXGroup;
 			children = (
-				729F79281A061C240036713A /* convolve.h */,
-				729F79291A061C240036713A /* disjoint-set.h */,
-				729F792A1A061C240036713A /* filter.h */,
-				729F792B1A061C240036713A /* image.h */,
-				729F792C1A061C240036713A /* imconv.h */,
-				729F792D1A061C240036713A /* imutil.h */,
-				729F792E1A061C240036713A /* misc.h */,
-				729F792F1A061C240036713A /* pnmfile.h */,
-				729F79301A061C240036713A /* segment-graph.h */,
-				729F79311A061C240036713A /* segment-image.h */,
+				72E7D9E91A127771009F6E60 /* Warp.h */,
+				72E7D9EA1A127771009F6E60 /* WarpBilinear.h */,
+				72E7D9EB1A127771009F6E60 /* WarpPerspective.h */,
+				72E7D9EC1A127771009F6E60 /* WarpPerspectiveBilinear.h */,
 			);
-			path = Segmentation;
+			path = include;
+			sourceTree = "<group>";
+		};
+		72E7D9ED1A127771009F6E60 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				72E7D9EE1A127771009F6E60 /* Warp.cpp */,
+				72E7D9EF1A127771009F6E60 /* WarpBilinear.cpp */,
+				72E7D9F01A127771009F6E60 /* WarpPerspective.cpp */,
+				72E7D9F11A127771009F6E60 /* WarpPerspectiveBilinear.cpp */,
+			);
+			path = src;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -270,7 +279,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				72E7D9F41A127771009F6E60 /* WarpPerspective.cpp in Sources */,
 				1B9C445908144D2DB2CE2DAD /* ImageRetargetingApp.cpp in Sources */,
+				72E7D9F51A127771009F6E60 /* WarpPerspectiveBilinear.cpp in Sources */,
+				72E7D9F31A127771009F6E60 /* WarpBilinear.cpp in Sources */,
+				72E7D9F21A127771009F6E60 /* Warp.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

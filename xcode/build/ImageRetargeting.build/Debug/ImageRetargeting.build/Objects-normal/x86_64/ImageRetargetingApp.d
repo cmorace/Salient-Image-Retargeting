@@ -4,7 +4,7 @@ dependencies: \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/gl/Texture.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/params/Params.h \
   /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/SaliencySegmentor.h \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Segmentation/segment-image.h \
+  ../include/Segmentation/segment-image.h \
   ../include/Segmentation/image.h ../include/Segmentation/misc.h \
   ../include/Segmentation/filter.h ../include/Segmentation/convolve.h \
   ../include/Segmentation/imconv.h ../include/Segmentation/imutil.h \

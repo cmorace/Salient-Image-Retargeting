@@ -29,8 +29,7 @@ namespace ph { namespace warping {
 
 typedef std::shared_ptr<class WarpBilinear>	WarpBilinearRef;
 
-class WarpBilinear
-	: public Warp
+class WarpBilinear: public Warp
 {
 public:
 	//
@@ -81,7 +80,7 @@ protected:
 	//! Creates the frame buffer object and updates the vertex buffer object if necessary
 	void				createBuffers();
 	//! Creates the vertex buffer object
-	void				createMesh( int resolutionX=36, int resolutionY=36 );
+	virtual void				createMesh( int resolutionX=36, int resolutionY=36 );
 	//! Updates the vertex buffer object based on the control points
 	void				updateMesh();
 	//!	Returns the specified control point. Values for col and row are clamped to prevent errors.

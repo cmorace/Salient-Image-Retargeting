@@ -10,6 +10,12 @@ dependencies: \
   ../include/Segmentation/imconv.h ../include/Segmentation/imutil.h \
   ../include/Segmentation/segment-graph.h \
   ../include/Segmentation/disjoint-set.h \
+  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/MeshWarper.h \
+  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/include/WarpBilinear.h \
+  ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/gl/Fbo.h \
+  ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/gl/Vbo.h \
+  ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/TriMesh.h \
+  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/include/Warp.h \
   /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/GradientSeamCarver.h \
   ../include/OpenCV/include/opencv2/opencv.hpp \
   ../include/OpenCV/include/opencv2/core/core_c.h \
@@ -38,4 +44,5 @@ dependencies: \
   ../include/OpenCV/include/opencv2/contrib/contrib.hpp \
   ../include/OpenCV/include/opencv2/contrib/retina.hpp \
   ../include/OpenCV/include/opencv2/contrib/openfabmap.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/OpenCV/include/CinderOpenCV.h
+  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/OpenCV/include/CinderOpenCV.h \
+  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/MeshWarpRetargetter.h

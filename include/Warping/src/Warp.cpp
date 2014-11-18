@@ -486,7 +486,7 @@ bool Warp::mouseUp(cinder::app::MouseEvent event)
 
 bool Warp::keyDown( KeyEvent event )
 {
-	// disable keyboard input when not in edit mode
+    // disable keyboard input when not in edit mode
 	if(sIsEditMode) {
 		if(event.getCode() == KeyEvent::KEY_ESCAPE) {
 			// gracefully exit edit mode 

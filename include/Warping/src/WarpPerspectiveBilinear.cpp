@@ -93,7 +93,8 @@ void WarpPerspectiveBilinear::draw(bool controls)
 	if( isEditModeEnabled() ) {
 		if(controls) {
 			// draw control points
-			for(unsigned i=0;i<mPoints.size();++i) 
+            
+			for(unsigned i=0;i<mPoints.size();++i)
 				drawControlPoint( getControlPoint(i) * mWindowSize, mSelected==i );
 		}
 	}

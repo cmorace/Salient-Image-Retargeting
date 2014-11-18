@@ -40,6 +40,7 @@
 		5323E6B50EAFCA7E003A9687 /* QTKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QTKit.framework; path = /System/Library/Frameworks/QTKit.framework; sourceTree = "<absolute>"; };
 		68E1788618A84E1E83CF3196 /* Resources.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = Resources.h; path = ../include/Resources.h; sourceTree = "<group>"; };
 		720A6AD91A10D886000E5C78 /* MeshWarper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = MeshWarper.h; path = ../include/MeshWarper.h; sourceTree = "<group>"; };
+		7256200F1A1B964200A09324 /* MeshWarpRetargetter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MeshWarpRetargetter.h; path = ../include/MeshWarpRetargetter.h; sourceTree = "<group>"; };
 		729F79211A060DD10036713A /* libopencv_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_core.a; path = ../include/OpenCV/lib/macosx/libopencv_core.a; sourceTree = "<group>"; };
 		729F79221A060DD10036713A /* libopencv_features2d.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_features2d.a; path = ../include/OpenCV/lib/macosx/libopencv_features2d.a; sourceTree = "<group>"; };
 		729F79231A060DD10036713A /* libopencv_imgproc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_imgproc.a; path = ../include/OpenCV/lib/macosx/libopencv_imgproc.a; sourceTree = "<group>"; };
@@ -49,7 +50,6 @@
 		729F79351A0626840036713A /* libopencv_core.2.4.9.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_core.2.4.9.dylib; path = ../../../xCodeProjects/OpenCVLearning/common/libopencv_core.2.4.9.dylib; sourceTree = "<group>"; };
 		729F79361A0626840036713A /* libopencv_highgui.2.4.9.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_highgui.2.4.9.dylib; path = ../../../xCodeProjects/OpenCVLearning/common/libopencv_highgui.2.4.9.dylib; sourceTree = "<group>"; };
 		729F79371A0626840036713A /* libopencv_imgproc.2.4.9.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_imgproc.2.4.9.dylib; path = ../../../xCodeProjects/OpenCVLearning/common/libopencv_imgproc.2.4.9.dylib; sourceTree = "<group>"; };
-		729F793B1A0629CA0036713A /* ImageRetargeter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ImageRetargeter.h; path = ../include/ImageRetargeter.h; sourceTree = "<group>"; };
 		72E7D9E91A127771009F6E60 /* Warp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Warp.h; sourceTree = "<group>"; };
 		72E7D9EA1A127771009F6E60 /* WarpBilinear.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WarpBilinear.h; sourceTree = "<group>"; };
 		72E7D9EB1A127771009F6E60 /* WarpPerspective.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WarpPerspective.h; sourceTree = "<group>"; };
@@ -88,6 +88,7 @@
 		01B97315FEAEA392516A2CEA /* Blocks */ = {
 			isa = PBXGroup;
 			children = (
+				72E7D9E71A127771009F6E60 /* Warping */,
 			);
 			name = Blocks;
 			sourceTree = "<group>";
@@ -148,13 +149,12 @@
 		29B97315FDCFA39411CA2CEA /* Headers */ = {
 			isa = PBXGroup;
 			children = (
-				72E7D9E71A127771009F6E60 /* Warping */,
 				729F79341A061C6D0036713A /* SaliencySegmentor.h */,
 				729F79331A061C630036713A /* GradientSeamCarver.h */,
 				729F79321A061C570036713A /* CinderOpenCV.h */,
 				68E1788618A84E1E83CF3196 /* Resources.h */,
-				729F793B1A0629CA0036713A /* ImageRetargeter.h */,
 				720A6AD91A10D886000E5C78 /* MeshWarper.h */,
+				7256200F1A1B964200A09324 /* MeshWarpRetargetter.h */,
 			);
 			name = Headers;
 			sourceTree = "<group>";

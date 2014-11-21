@@ -366,8 +366,9 @@ void ImageRetargetingApp::segmentButtonClick()
 
 void ImageRetargetingApp::getMeshButtonClick()
 {
-    meshWarpRetargetter->setMesh();
+    //meshWarpRetargetter->setMesh();
     //meshWarpRetargetter->setTexture(segmentedImage);
+    meshWarpRetargetter->initMesh(segmentedImage.getWidth(),segmentedImage.getHeight());
     meshWarpingState = MeshWarpingState::ShowMeshWarping;
     updateApplication();
 }

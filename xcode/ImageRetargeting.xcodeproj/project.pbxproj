@@ -41,6 +41,16 @@
 		68E1788618A84E1E83CF3196 /* Resources.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = Resources.h; path = ../include/Resources.h; sourceTree = "<group>"; };
 		720A6AD91A10D886000E5C78 /* MeshWarper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = MeshWarper.h; path = ../include/MeshWarper.h; sourceTree = "<group>"; };
 		7256200F1A1B964200A09324 /* MeshWarpRetargetter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MeshWarpRetargetter.h; path = ../include/MeshWarpRetargetter.h; sourceTree = "<group>"; };
+		725620111A1F046B00A09324 /* convolve.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = convolve.h; sourceTree = "<group>"; };
+		725620121A1F046B00A09324 /* disjoint-set.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "disjoint-set.h"; sourceTree = "<group>"; };
+		725620131A1F046B00A09324 /* filter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = filter.h; sourceTree = "<group>"; };
+		725620141A1F046B00A09324 /* image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = image.h; sourceTree = "<group>"; };
+		725620151A1F046B00A09324 /* imconv.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = imconv.h; sourceTree = "<group>"; };
+		725620161A1F046B00A09324 /* imutil.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = imutil.h; sourceTree = "<group>"; };
+		725620171A1F046B00A09324 /* misc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = misc.h; sourceTree = "<group>"; };
+		725620181A1F046B00A09324 /* pnmfile.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pnmfile.h; sourceTree = "<group>"; };
+		725620191A1F046B00A09324 /* segment-graph.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "segment-graph.h"; sourceTree = "<group>"; };
+		7256201A1A1F046B00A09324 /* segment-image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "segment-image.h"; sourceTree = "<group>"; };
 		729F79211A060DD10036713A /* libopencv_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_core.a; path = ../include/OpenCV/lib/macosx/libopencv_core.a; sourceTree = "<group>"; };
 		729F79221A060DD10036713A /* libopencv_features2d.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_features2d.a; path = ../include/OpenCV/lib/macosx/libopencv_features2d.a; sourceTree = "<group>"; };
 		729F79231A060DD10036713A /* libopencv_imgproc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libopencv_imgproc.a; path = ../include/OpenCV/lib/macosx/libopencv_imgproc.a; sourceTree = "<group>"; };
@@ -88,6 +98,7 @@
 		01B97315FEAEA392516A2CEA /* Blocks */ = {
 			isa = PBXGroup;
 			children = (
+				725620101A1F046B00A09324 /* Segmentation */,
 				72E7D9E71A127771009F6E60 /* Warping */,
 			);
 			name = Blocks;
@@ -181,6 +192,24 @@
 				1058C7A2FEA54F0111CA2CBB /* Other Frameworks */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		725620101A1F046B00A09324 /* Segmentation */ = {
+			isa = PBXGroup;
+			children = (
+				725620111A1F046B00A09324 /* convolve.h */,
+				725620121A1F046B00A09324 /* disjoint-set.h */,
+				725620131A1F046B00A09324 /* filter.h */,
+				725620141A1F046B00A09324 /* image.h */,
+				725620151A1F046B00A09324 /* imconv.h */,
+				725620161A1F046B00A09324 /* imutil.h */,
+				725620171A1F046B00A09324 /* misc.h */,
+				725620181A1F046B00A09324 /* pnmfile.h */,
+				725620191A1F046B00A09324 /* segment-graph.h */,
+				7256201A1A1F046B00A09324 /* segment-image.h */,
+			);
+			name = Segmentation;
+			path = ../include/Segmentation;
 			sourceTree = "<group>";
 		};
 		72E7D9E71A127771009F6E60 /* Warping */ = {

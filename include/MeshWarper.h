@@ -21,6 +21,10 @@ class MeshWarper : public WarpBilinear
     
 public:
     void setMesh(int quadSize);
+    void setTexture(cinder::gl::Texture t);
+    cinder::gl::Texture currentTexture;
+    bool isdrawWireFrame = true;
+    bool isdrawControlPoints = true;
 
 protected:
     void draw(bool controls = true);
@@ -58,21 +62,21 @@ void MeshWarper::draw(bool controls)
     gl::draw( mVboMesh );
     
     // draw edit interface
-    if( isEditModeEnabled() ) {
+    if( isdrawWireFrame ) {
         glDisable( GL_TEXTURE_2D );
         
         // draw wireframe
-        gl::color( ColorA(1, 1, 1, 0.5f) );
+        gl::color( ColorA(1, 1, 1, 0.3f) );
         gl::enableAlphaBlending();
         gl::enableWireframe();
         gl::draw( mVboMesh );
         gl::disableAlphaBlending();
         gl::disableWireframe();
         
-        if(controls) {
+        if(isdrawControlPoints) {
             // draw control points
-           // for(unsigned i=0;i<mPoints.size();i++)
-            //    drawControlPoint( getControlPoint(i) * mWindowSize, i == mSelected );
+            for(unsigned i=0;i<mPoints.size();i++)
+                drawControlPoint( getControlPoint(i) * mWindowSize, i == mSelected );
         }
     }
     
@@ -81,40 +85,62 @@ void MeshWarper::draw(bool controls)
 }
 void MeshWarper::setMesh(int quadSize)
 {
-    printf("\nsetMesh");
-    printf("\nsetMesh = %d", quadSize);
+    printf("\nsetMesh, quad size = %d", quadSize);
     mResolution = quadSize;
-    setNumControlX(getWidth()/quadSize);
-    setNumControlY(getHeight()/quadSize);
-    createMesh(mResolution,mResolution);
+    //setNumControlX(getWidth()/quadSize);
+    //setNumControlY(getHeight()/quadSize);
+    
+    //get closest quadSize that evenly divides
+    createMesh(quadSize,quadSize);
+    
+    /*
+    for(int i=0; i<mPoints.size(); i++){
+        Vec2f v = this->getControlPoint(i);
+        printf("\n(x,y) = (%f,%f)",v.x,v.y);
+    }
+     */
+    
 }
 
-void MeshWarper::createMesh(int resolutionX, int resolutionY)
+void MeshWarper::createMesh(int quadResolutionX, int quadResolutionY)
 {
-    // convert from number of quads to number of vertices
-    printf("\ncreateMesh");
-    ++resolutionX;	++resolutionY;
-    
-    // find a value for resolutionX and resolutionY that can be
-    // evenly divided by mControlsX and mControlsY
     /*
-    if(mControlsX < resolutionX) {
-        int dx = (resolutionX-1) % (mControlsX-1);
-        if(dx >= (mControlsX/2)) dx -= (mControlsX-1);
-        resolutionX -= dx;
-    } else {
-        resolutionX = mControlsX;
+    int totalVertices = VERTICES_X * VERTICES_Z;
+    int totalQuads = ( VERTICES_X - 1 ) * ( VERTICES_Z - 1 );
+    gl::VboMesh::Layout layout;
+    layout.setStaticIndices();
+    layout.setDynamicPositions();
+    layout.setStaticTexCoords2d();
+    mVboMesh = gl::VboMesh::create( numVertices, numQuads * 4, layout, GL_QUADS );
+    
+    // buffer our static data - the texcoords and the indices
+    vector<uint32_t> indices;
+    vector<Vec2f> texCoords;
+    for( int x = 0; x < VERTICES_X; ++x ) {
+        for( int z = 0; z < VERTICES_Z; ++z ) {
+            // create a quad for each vertex, except for along the bottom and right edges
+            if( ( x + 1 < VERTICES_X ) && ( z + 1 < VERTICES_Z ) ) {
+                indices.push_back( (x+0) * VERTICES_Z + (z+0) );
+                indices.push_back( (x+1) * VERTICES_Z + (z+0) );
+                indices.push_back( (x+1) * VERTICES_Z + (z+1) );
+                indices.push_back( (x+0) * VERTICES_Z + (z+1) );
+            }
+            // the texture coordinates are mapped to [0,1.0)
+            texCoords.push_back( Vec2f( x / (float)VERTICES_X, z / (float)VERTICES_Z ) );
+        }
     }
     
-    if(mControlsY < resolutionY) {
-        int dy = (resolutionY-1) % (mControlsY-1);
-        if(dy >= (mControlsY/2)) dy -= (mControlsY-1);
-        resolutionY -= dy;
-    } else {
-        resolutionY = mControlsY;
-    }
-    */
-    //test
+    mVboMesh->bufferIndices( indices );
+    mVboMesh->bufferTexCoords2d( 0, texCoords );
+    
+    // make a second Vbo that uses the statics from the first
+    mVboMesh2 = gl::VboMesh::create( totalVertices, totalQuads * 4, mVboMesh->getLayout(), GL_QUADS, &mVboMesh->getIndexVbo(), &mVboMesh->getStaticVbo(), NULL );
+    mVboMesh2->setTexCoordOffset( 0, mVboMesh->getTexCoordOffset( 0 ) );
+    
+    mTexture = gl::Texture::create( loadImage( loadResource( RES_IMAGE ) ) );
+    // convert from number of quads to number of vertices
+    
+    ++resolutionX;	++resolutionY;
     resolutionX = mControlsX;
     resolutionY = mControlsY;
     //
@@ -163,6 +189,7 @@ void MeshWarper::createMesh(int resolutionX, int resolutionY)
     
     //
     mIsDirty = true;
+     */
 }
 
 

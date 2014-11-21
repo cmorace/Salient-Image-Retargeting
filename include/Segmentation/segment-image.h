@@ -157,6 +157,7 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
      
 }
 
+
 /*
  * Segment an image
  *
@@ -168,6 +169,7 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
  * min_size: minimum component size (enforced by post-processing stage).
  * num_ccs: number of connected components in the segmentation.
  */
+/*
 image<rgb> *segment_color_image(image<rgb> *im, float sigma, float c, int min_size,
                           int *num_ccs) {
     
@@ -280,6 +282,9 @@ image<rgb> *segment_color_image(image<rgb> *im, float sigma, float c, int min_si
     return output;
     
 }
+
+*/
+
 
 
 #endif

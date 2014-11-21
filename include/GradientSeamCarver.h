@@ -16,7 +16,7 @@
 
 class GradientSeamCarver {
 public:
-    enum class EdgeDetection
+    enum EdgeDetection
     {
         Sobel,
         Scharr,
@@ -51,7 +51,7 @@ private:
     
     struct ImageSeam
     {
-        enum class SeamDirection
+        enum SeamDirection
         {
             LeftToRight,
             RightToLeft,
@@ -129,20 +129,20 @@ cv::Mat GradientSeamCarver::getGradientImageCV(cinder::Surface imgData, EdgeDete
     
     /// Gradient X
     if(edgeDetect == EdgeDetection::Sobel){
-        Sobel( src_gray, grad_x, ddepth, 1, 0, 3, scale, delta, cv::BORDER_DEFAULT );
+        cv::Sobel( src_gray, grad_x, ddepth, 1, 0, 3, scale, delta, cv::BORDER_DEFAULT );
     }
     else if(edgeDetect == EdgeDetection::Scharr){
-        Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, cv::BORDER_DEFAULT );
+        cv::Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, cv::BORDER_DEFAULT );
     }
     //
     convertScaleAbs( grad_x, abs_grad_x );
     
     /// Gradient Y
     if(edgeDetect == EdgeDetection::Sobel){
-        Sobel( src_gray, grad_y, ddepth, 0, 1, 3, scale, delta, cv::BORDER_DEFAULT );
+        cv::Sobel( src_gray, grad_y, ddepth, 0, 1, 3, scale, delta, cv::BORDER_DEFAULT );
     }
     else if(edgeDetect == EdgeDetection::Scharr){
-        Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, cv::BORDER_DEFAULT );
+        cv::Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, cv::BORDER_DEFAULT );
     }
     convertScaleAbs( grad_y, abs_grad_y );
     

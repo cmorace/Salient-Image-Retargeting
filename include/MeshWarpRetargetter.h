@@ -45,10 +45,10 @@ private:
     std::vector<ci::Vec2f>	vertices;
     
     struct Edge{
-        Vec2f a,b;
+        unsigned int a,b; // save indices in vbo
     };
     struct Quad{
-        Edge t,b,l,r;
+        unsigned int t,b,l,r; // save indices in vbo
     };
     
 };
@@ -93,6 +93,7 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
     // buffer our static data - the texcoords and the indices
     std::vector<uint32_t> indices;
     std::vector<Vec2f> texCoords;
+    gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
     for( int x = 0; x < VERTICES_X; ++x ) {
         for( int y = 0; y < VERTICES_Y; ++y ) {
             // create a quad for each vertex, except for along the bottom and right edges
@@ -102,23 +103,30 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
                 indices.push_back( (x+1) * VERTICES_Y + (y+1) );
                 indices.push_back( (x+0) * VERTICES_Y + (y+1) );
             }
+            // set Texture coordinates
+            Vec2f v = Vec2f( x / (VERTICES_X-1.f), y / (VERTICES_Y-1.f) );
             // the texture coordinates are mapped to [0,1.0]
-            texCoords.push_back( Vec2f( x / (VERTICES_X-1.f), y / (VERTICES_Y-1.f) ) );
+            texCoords.push_back( v );
+            // set Vertex Position
+            iter.setPosition( n * v.x, m * v.y, 0.0f );
+            ++iter;
         }
     }
     vboMesh->bufferIndices( indices );
     vboMesh->bufferTexCoords2d( 0, texCoords );
     
+    /*
     vertices.clear();
     gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
     for(int x=0;x<VERTICES_X;x++) {
         for(int y=0;y<VERTICES_Y;y++) {
-            Vec2f v = Vec2f(n*x / float(VERTICES_X-1), m*y / float(VERTICES_Y-1));
+            Vec2f v = Vec2f(n * x / float(VERTICES_X-1), m * y / float(VERTICES_Y-1));
             vertices.push_back( v );
             iter.setPosition( v.x, v.y, 0.0f );
             ++iter;
         }
     }
+     */
     
     //setNumControlX(VERTICES_X,VERTICES_Y);
     printf("\ngot control x");

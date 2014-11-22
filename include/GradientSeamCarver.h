@@ -76,15 +76,8 @@ private:
     std::vector<ImageSeam> getSortedVerticalSeams(cv::Mat imgData);
     std::vector<ImageSeam> getSortedHorizontalSeams(cv::Mat imgData);
     void deleteCurrentSeams();
-    
-    //cinder::Surface drawVerticalSeams(cinder::Surface imgData, int nSeams = 1, bool returnGradient=false);
-    //cinder::Surface drawHorizontalSeams(cinder::Surface imgData, int nSeams = 1, bool returnGradient = false);
     void drawSeams(cinder::Surface imgData, int nSeams, std::vector<ImageSeam> seamVector);
     cinder::Surface carveSeam(cinder::Surface imgData, ImageSeam seam);
-    
-    //std::vector<ImageSeam> getSortedVerticalSeams(cinder::Surface img);
-    //std::vector<ImageSeam> getSortedHorizontalSeams(cinder::Surface img);
-    //
     cinder::Timer* timer;
     cv::Mat currentGradient;
     std::vector<ImageSeam> currentSeams;

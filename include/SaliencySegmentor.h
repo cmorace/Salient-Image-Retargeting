@@ -11,21 +11,38 @@
 
 #include <stdio.h>
 #include "segment-image.h"
+#include "opencv2/opencv.hpp"
+#include "CinderOpenCV.h"
 
 class SaliencySegmentor {
 public:
+    enum EdgeDetection
+    {
+        Sobel,
+        Scharr,
+        Canny, //todo
+        Undefined
+    };
+    EdgeDetection edgeDetect = EdgeDetection::Sobel;
+    unsigned int scale = 1;
+    unsigned int delta = 0;
+    
     SaliencySegmentor();
     void setSegmentationParameters(float sigma, float k, float minSize);
     cinder::Surface segmentImage(cinder::Surface imgData);
+    cinder::Surface getSaliencyMap(cinder::Surface imgData);
     float sigma_Seg;
     float k_Seg;
     int minSize_Seg;
     int nbOfSegments;
     double segTime;
+    double saliencyTime;
     
 private:
     cinder::Timer* timer;
+    cv::Mat currentGradient;
     image<rgb> *segment_color_image(image<rgb> *im, float sigma, float c, int min_size, int *num_ccs);
+    cv::Mat getSaliencyMapCV(cinder::Surface imgData, EdgeDetection edgeDetect);
 };
 
 SaliencySegmentor::SaliencySegmentor()
@@ -56,6 +73,56 @@ cinder::Surface SaliencySegmentor::segmentImage(cinder::Surface imgData)
     // assuming rgb format no alpha channel
     return cinder::Surface((uchar*)(output->data), w,h, w*3, cinder::SurfaceChannelOrder::RGB);
     //
+
+
+}
+
+ci::Surface SaliencySegmentor::getSaliencyMap(cinder::Surface imgData)
+{
+    currentGradient = getSaliencyMapCV(imgData, edgeDetect);
+    return cinder::Surface( cinder::fromOcv( currentGradient ) );
+}
+
+cv::Mat SaliencySegmentor::getSaliencyMapCV(cinder::Surface imgData, EdgeDetection edgeDetect)
+{
+    cv::Mat src, src_gray;
+    int ddepth = CV_16S;
+    
+    src = cinder::toOcv(imgData);
+    timer->start();
+    GaussianBlur( src, src, cv::Size(3,3), 0, 0, cv::BORDER_DEFAULT );
+    
+    /// Convert it to gray
+    cvtColor( src, src_gray, CV_RGB2GRAY );
+    
+    /// Generate grad_x and grad_y
+    cv::Mat grad_x, grad_y;
+    cv::Mat abs_grad_x, abs_grad_y;
+    
+    /// Gradient X
+    if(edgeDetect == EdgeDetection::Sobel){
+        cv::Sobel( src_gray, grad_x, ddepth, 1, 0, 3, scale, delta, cv::BORDER_DEFAULT );
+    }
+    else if(edgeDetect == EdgeDetection::Scharr){
+        cv::Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, cv::BORDER_DEFAULT );
+    }
+    //
+    convertScaleAbs( grad_x, abs_grad_x );
+    
+    /// Gradient Y
+    if(edgeDetect == EdgeDetection::Sobel){
+        cv::Sobel( src_gray, grad_y, ddepth, 0, 1, 3, scale, delta, cv::BORDER_DEFAULT );
+    }
+    else if(edgeDetect == EdgeDetection::Scharr){
+        cv::Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, cv::BORDER_DEFAULT );
+    }
+    convertScaleAbs( grad_y, abs_grad_y );
+    
+    /// Total Gradient (approximate)
+    addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, currentGradient);
+    timer->stop();
+    saliencyTime = timer->getSeconds();
+    return currentGradient;
 }
 
 /*

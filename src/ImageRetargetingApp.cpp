@@ -55,6 +55,9 @@ private:
     void seamCarveResetButtonClick();
     void sobelGradientButtonClick();
     void scharrGradientButtonClick();
+    void sobelSaliencyButtonClick();
+    void scharrSaliencyButtonClick();
+    
     void verticalSeamGradientButtonClick();
     void horizontalSeamGradientButtonClick();
     void showCurrentSeamButtonClick();
@@ -74,11 +77,14 @@ private:
     
     Surface             originalImage;
     Surface             segmentedImage;
+    Surface             saliencyImage;
     Surface             gradientImage;
     Surface             seamCarvedImage;
     Surface             seamCarvedImageCopy;
+    
     gl::Texture         originalTexture;
     gl::Texture         segmentedTexture;
+    gl::Texture         saliencyTexture;
     gl::Texture         gradientTexture;
     gl::Texture         seamCarvedTexture;
     gl::Texture         retargetedTexture;
@@ -186,6 +192,12 @@ void ImageRetargetingApp::updateData()
     segParams->addButton( "Segment", std::bind( &ImageRetargetingApp::segmentButtonClick, this ) );
     segParams->addText("NB of Segments: " + to_string(segmentor->nbOfSegments));
     segParams->addText("Time: " + to_string(segmentor->segTime));
+    segParams->addSeparator();
+    segParams->addParam( "Scale", &(segmentor->scale) ).min( 1 ).max( 10 ).step( 1 );
+    segParams->addParam( "Delta", &(segmentor->delta) ).min( 0 ).max( 100 ).step( 1 );
+    segParams->addButton( "Sobel Gradient", std::bind( &ImageRetargetingApp::sobelSaliencyButtonClick, this ) );
+    segParams->addButton( "Scharr Gradient", std::bind( &ImageRetargetingApp::scharrSaliencyButtonClick, this ) );
+    segParams->addText("Time: " + to_string(segmentor->saliencyTime));
     segParams->addSeparator();
     segParams->addParam( "Quad Size", &(meshWarpRetargetter->quadSize) ).min( 10 ).max( 100 ).step( 1 );
     segParams->addButton( "GetMesh", std::bind( &ImageRetargetingApp::getMeshButtonClick, this ) );
@@ -350,11 +362,8 @@ void ImageRetargetingApp::drawGradientImageWindow()
     gradParams->draw();
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////
-// EVENT LISTENERS
-/////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Segmentation GUI
+//                        Segmentation GUI
 //==============================================================================
 void ImageRetargetingApp::segmentButtonClick()
 {
@@ -374,8 +383,8 @@ void ImageRetargetingApp::getMeshButtonClick()
 }
 
 
-// Seam Carving GUI
-//==============================================================================
+//                        RESET
+//===============================================================
 void ImageRetargetingApp::seamCarveResetButtonClick()
 {
     seamCarvingState = SeamCarvingState::ShowImage;
@@ -386,6 +395,8 @@ void ImageRetargetingApp::seamCarveResetButtonClick()
     updateApplication();
 }
 
+//                        EDGE DETECTION
+//===============================================================
 void ImageRetargetingApp::sobelGradientButtonClick()
 {
     seamCarvingState = SeamCarvingState::ShowGradient;
@@ -399,6 +410,25 @@ void ImageRetargetingApp::scharrGradientButtonClick()
     gradientTexture = gl::Texture(seamCarver->getGradientImage(seamCarvedImage, GradientSeamCarver::EdgeDetection::Scharr));
     updateApplication();
 }
+
+//                        SALIENCY
+//===============================================================
+void ImageRetargetingApp::sobelSaliencyButtonClick()
+{
+   // seamCarvingState = SeamCarvingState::;
+    gradientTexture = gl::Texture(seamCarver->getGradientImage(seamCarvedImage, GradientSeamCarver::EdgeDetection::Sobel));
+    updateApplication();
+}
+
+void ImageRetargetingApp::scharrSaliencyButtonClick()
+{
+    seamCarvingState = SeamCarvingState::ShowGradient;
+    gradientTexture = gl::Texture(seamCarver->getGradientImage(seamCarvedImage, GradientSeamCarver::EdgeDetection::Scharr));
+    updateApplication();
+}
+
+//                        SEAM CARVING
+//===============================================================
 
 void ImageRetargetingApp::verticalSeamGradientButtonClick(){
     seamCarvingState = SeamCarvingState::ShowGradient;
@@ -428,6 +458,7 @@ void ImageRetargetingApp::deleteCurrentSeamButtonClick(){
     updateApplication();
 }
 
+//-------TODO:
 void ImageRetargetingApp::addCurrentSeamButtonClick(){
     updateApplication();
 }
@@ -438,6 +469,9 @@ void ImageRetargetingApp::resizeSeamButtonClick()
     seamCarvedTexture = gl::Texture(seamCarvedImage);
     updateApplication();
 }
+
+//                        KEY
+//===============================================================
 
 void ImageRetargetingApp::keyDown( KeyEvent event )
 {
@@ -462,6 +496,9 @@ void ImageRetargetingApp::keyDown( KeyEvent event )
         }
     }
 }
+
+//                        MOUSE
+//===============================================================
 
 void ImageRetargetingApp::fileDrop( FileDropEvent event )
 {

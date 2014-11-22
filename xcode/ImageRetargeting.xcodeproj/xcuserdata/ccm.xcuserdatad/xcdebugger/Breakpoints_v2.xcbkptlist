@@ -10,11 +10,11 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../include/GradientSeamCarver.h"
-            timestampString = "437695368.893071"
+            timestampString = "438348588.923555"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "107"
-            endingLineNumber = "107"
+            startingLineNumber = "100"
+            endingLineNumber = "100"
             landmarkName = "GradientSeamCarver::getGradientImage(cinder::Surface imgData, EdgeDetection edgeDetect)"
             landmarkType = "5">
          </BreakpointContent>

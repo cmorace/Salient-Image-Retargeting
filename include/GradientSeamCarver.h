@@ -34,6 +34,11 @@ public:
     cinder::Surface deleteCurrentSeam(cinder::Surface img);
     cinder::Surface deleteVerticalSeam(cinder::Surface imgData);
     cinder::Surface deleteHorizontalSeam(cinder::Surface imgData);
+    void startGradientTimer();
+    void stopGradientTimer();
+    
+    void startCarveTimer();
+    void stopCarveTimer();
     //cinder::Surface deleteMinEnergySeam(cinder::Surface imgData);
     //cinder::Surface addVerticalSeam(cinder::Surface imgData, int nSeams);
     //cinder::Surface addHorizontalSeam(cinder::Surface imgData, int nSeams);
@@ -77,6 +82,7 @@ private:
     std::vector<ImageSeam> getSortedHorizontalSeams(cv::Mat imgData);
     void deleteCurrentSeams();
     void drawSeams(cinder::Surface imgData, int nSeams, std::vector<ImageSeam> seamVector);
+    
     cinder::Surface carveSeam(cinder::Surface imgData, ImageSeam seam);
     cinder::Timer* timer;
     cv::Mat currentGradient;
@@ -89,10 +95,37 @@ GradientSeamCarver::GradientSeamCarver()
     scale = 1;
     delta = 0;
     gradTime = 0.0;
+    seamTime = 0.0;
     carveTime = 0.0;
     nbOfSeams = 1;
-    newWidth = 600;
-    newHeight = 800;
+    newWidth = 800;
+    newHeight = 600;
+}
+
+void GradientSeamCarver::startCarveTimer()
+{
+    timer->start();
+    carveTime = 0;
+
+}
+
+void GradientSeamCarver::stopCarveTimer()
+{
+    timer->stop();
+    carveTime = timer->getSeconds();
+}
+
+void GradientSeamCarver::startGradientTimer()
+{
+    timer->start();
+    gradTime = 0;
+    
+}
+
+void GradientSeamCarver::stopGradientTimer()
+{
+    timer->stop();
+    gradTime = timer->getSeconds();
 }
 
 
@@ -110,7 +143,6 @@ cv::Mat GradientSeamCarver::getGradientImageCV(cinder::Surface imgData, EdgeDete
     int ddepth = CV_16S;
     
     src = cinder::toOcv(imgData);
-    timer->start();
     GaussianBlur( src, src, cv::Size(3,3), 0, 0, cv::BORDER_DEFAULT );
     
     /// Convert it to gray
@@ -141,8 +173,6 @@ cv::Mat GradientSeamCarver::getGradientImageCV(cinder::Surface imgData, EdgeDete
     
     /// Total Gradient (approximate)
     addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, currentGradient);
-    timer->stop();
-    gradTime = timer->getSeconds();
     return currentGradient;
 }
 
@@ -184,7 +214,6 @@ cinder::Surface GradientSeamCarver::deleteCurrentSeam(cinder::Surface img)
     return carveSeam(img,currentSeams.at(0));
 }
 
-// move to seamcarver ?????
 void GradientSeamCarver::deleteCurrentSeams()
 {
     if(!currentSeams.empty()){
@@ -254,10 +283,7 @@ cinder::Surface GradientSeamCarver::drawVerticalSeamsGradient()
 {
     cinder::Surface result = cinder::fromOcv(currentGradient);
     deleteCurrentSeams();
-    timer->start();
     currentSeams = getSortedVerticalSeams(currentGradient);
-    timer->stop();
-    seamTime = timer->getSeconds();
     drawSeams(result, nbOfSeams, currentSeams);
     return result;
 }
@@ -266,10 +292,7 @@ cinder::Surface GradientSeamCarver::drawHorizontalSeamsGradient()
 {
     cinder::Surface result = cinder::fromOcv(currentGradient);
     deleteCurrentSeams();
-    timer->start();
     currentSeams = getSortedHorizontalSeams(currentGradient);
-    timer->stop();
-    seamTime = timer->getSeconds();
     drawSeams(result, nbOfSeams, currentSeams);
     return result;
 }

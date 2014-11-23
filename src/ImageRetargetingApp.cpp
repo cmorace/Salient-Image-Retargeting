@@ -51,10 +51,13 @@ private:
     void resetStates();
     
     //Warping
-    void segmentButtonClick();
+    void segmentRandomButtonClick();
+    void segmentColorButtonClick();
+    void segmentSaliencyButtonClick();
+    
     void sobelSaliencyButtonClick();
     void scharrSaliencyButtonClick();
-    void mergeSegmentAndSaliencyButtonClick();
+    
     void getMeshButtonClick();
     
     //SeamCarving
@@ -177,7 +180,7 @@ void ImageRetargetingApp::initTextures(fs::path path)
     segmentedImage = originalImage.clone();
     segmentedTexture = gl::Texture(segmentedImage);
     
-    saliencyImage = originalImage.clone();
+    saliencyImage = saliencySegmentor->getSaliencyMap(originalImage.clone(), SaliencySegmentor::SaliencyMethod::Sobel);
     saliencyTexture = gl::Texture(saliencyImage);
     
     retargetedTexture = gl::Texture(originalImage.clone());
@@ -195,10 +198,12 @@ void ImageRetargetingApp::updateData()
     
     // Segmentation
     segParams->clear();
-    segParams->addParam( "Smoothing", &(saliencySegmentor->sigma_Seg) ).min( 0.01f ).max( 1.00f ).step( 0.01f );
-    segParams->addParam( "K",&(saliencySegmentor->k_Seg) ).min( 0.0f ).max( 1500.0f ).step( 2.0f );
-    segParams->addParam( "Min Size", &(saliencySegmentor->minSize_Seg)).min( 0 ).max( 1500 ).step( 2 );
-    segParams->addButton( "Segment", std::bind( &ImageRetargetingApp::segmentButtonClick, this ) );
+    segParams->addParam( "Guass Deviation", &(saliencySegmentor->segBlurDeviation) ).min( 0.01f ).max( 1.00f ).step( 0.01f );
+    segParams->addParam( "Neighbor Threshold",&(saliencySegmentor->segNeighborThreshold) ).min( 0.0f ).max( 1500.0f ).step( 10.f );
+    segParams->addParam( "Min Size", &(saliencySegmentor->segMinSize)).min( 0 ).max( 1500 ).step( 10 );
+    segParams->addButton( "Segment Random", std::bind( &ImageRetargetingApp::segmentRandomButtonClick, this ) );
+    segParams->addButton( "Segment Color", std::bind( &ImageRetargetingApp::segmentColorButtonClick, this ) );
+    segParams->addButton( "Segment Saliency", std::bind( &ImageRetargetingApp::segmentSaliencyButtonClick, this ) );
     segParams->addText("NB of Segments: " + to_string(saliencySegmentor->nbOfSegments));
     segParams->addText("Time: " + to_string(saliencySegmentor->segTime));
     
@@ -209,9 +214,6 @@ void ImageRetargetingApp::updateData()
     segParams->addButton( "Sobel Gradient", std::bind( &ImageRetargetingApp::sobelSaliencyButtonClick, this ) );
     segParams->addButton( "Scharr Gradient", std::bind( &ImageRetargetingApp::scharrSaliencyButtonClick, this ) );
     segParams->addText("Time: " + to_string(saliencySegmentor->saliencyTime));
-    
-    segParams->addSeparator();
-    segParams->addButton( "Merge Saliency and Segmentation", std::bind( &ImageRetargetingApp::mergeSegmentAndSaliencyButtonClick, this ) );
     
     segParams->addSeparator();
     
@@ -321,8 +323,8 @@ void ImageRetargetingApp::drawSegmentedImageWindow()
             break;
             
         case MeshWarpingState::ShowMeshWarping :
-            if( segmentedTexture ) {
-                meshWarpRetargetter->draw(segmentedTexture);
+            if( saliencyTexture ) {
+                meshWarpRetargetter->draw(saliencyTexture);
             }
             break;
             
@@ -446,22 +448,12 @@ void ImageRetargetingApp::scharrSaliencyButtonClick()
     updateApplication();
 }
 
-void ImageRetargetingApp::mergeSegmentAndSaliencyButtonClick()
-{
-    printf("\nbefore merge");
-    saliencyImage = Surface(originalTexture);
-    saliencyImage = saliencySegmentor->getSalientSegmentedImage(saliencyImage);
-    saliencyTexture = gl::Texture(saliencyImage);
-    meshWarpingState = MeshWarpingState::ShowSaliencyMap;
-    updateApplication();
-    printf("\nafter merge");
-}
+
 
 //                        SEGMENTATION
 //==============================================================================
-void ImageRetargetingApp::segmentButtonClick()
+void ImageRetargetingApp::segmentRandomButtonClick()
 {
-    //printf("\nsegment\n");
     segmentedImage = Surface(originalTexture);
     segmentedImage = saliencySegmentor->getSegmentedImage(segmentedImage);
     segmentedTexture = gl::Texture(segmentedImage);
@@ -469,9 +461,30 @@ void ImageRetargetingApp::segmentButtonClick()
     updateApplication();
 }
 
+void ImageRetargetingApp::segmentColorButtonClick()
+{
+    segmentedImage = Surface(originalTexture);
+    segmentedImage = saliencySegmentor->getSegmentedColorImage(segmentedImage);
+    segmentedTexture = gl::Texture(segmentedImage);
+    meshWarpingState = MeshWarpingState::ShowSegmentedImage;
+    updateApplication();
+}
+
+void ImageRetargetingApp::segmentSaliencyButtonClick()
+{
+    saliencyImage = Surface(originalTexture);
+    saliencyImage = saliencySegmentor->getSegmentedSalientImage(saliencyImage);
+    saliencyTexture = gl::Texture(saliencyImage);
+    meshWarpingState = MeshWarpingState::ShowSaliencyMap;
+    updateApplication();
+}
+
+//                        MESH WARPING
+//==============================================================================
+
 void ImageRetargetingApp::getMeshButtonClick()
 {
-    meshWarpRetargetter->initMesh(segmentedImage.getWidth(),segmentedImage.getHeight());
+    meshWarpRetargetter->initMesh(saliencyImage.getWidth(),saliencyImage.getHeight());
     meshWarpingState = MeshWarpingState::ShowMeshWarping;
     updateApplication();
 }

@@ -85,21 +85,8 @@ void MeshWarper::draw(bool controls)
 }
 void MeshWarper::setMesh(int quadSize)
 {
-    printf("\nsetMesh, quad size = %d", quadSize);
     mResolution = quadSize;
-    //setNumControlX(getWidth()/quadSize);
-    //setNumControlY(getHeight()/quadSize);
-    
-    //get closest quadSize that evenly divides
     createMesh(quadSize,quadSize);
-    
-    /*
-    for(int i=0; i<mPoints.size(); i++){
-        Vec2f v = this->getControlPoint(i);
-        printf("\n(x,y) = (%f,%f)",v.x,v.y);
-    }
-     */
-    
 }
 
 void MeshWarper::createMesh(int quadResolutionX, int quadResolutionY)

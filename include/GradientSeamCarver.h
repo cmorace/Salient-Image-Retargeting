@@ -46,6 +46,8 @@ public:
     unsigned int scale;
     unsigned int delta;
     unsigned int nbOfSeams;
+    unsigned int oldWidth;
+    unsigned int oldHeight;
     unsigned int newWidth;
     unsigned int newHeight;
     double gradTime;
@@ -131,6 +133,8 @@ void GradientSeamCarver::stopGradientTimer()
 
 cinder::Surface GradientSeamCarver::getGradientImage(cinder::Surface imgData, EdgeDetection edgeDetect)
 {
+    oldWidth = imgData.getWidth();
+    oldHeight = imgData.getHeight();
     currentGradient = getGradientImageCV(imgData, edgeDetect);
     prevGradientMethod = edgeDetect;
     return cinder::Surface( cinder::fromOcv( currentGradient ) );

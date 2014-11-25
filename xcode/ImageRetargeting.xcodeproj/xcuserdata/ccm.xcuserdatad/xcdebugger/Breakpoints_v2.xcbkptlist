@@ -10,12 +10,28 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../include/GradientSeamCarver.h"
-            timestampString = "438420405.971701"
+            timestampString = "438541517.389733"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "133"
-            endingLineNumber = "133"
+            startingLineNumber = "135"
+            endingLineNumber = "135"
             landmarkName = "GradientSeamCarver::getGradientImage(cinder::Surface imgData, EdgeDetection edgeDetect)"
+            landmarkType = "5">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../include/MeshWarpRetargetter.h"
+            timestampString = "438597278.340499"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "142"
+            endingLineNumber = "142"
+            landmarkName = "MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight)"
             landmarkType = "5">
          </BreakpointContent>
       </BreakpointProxy>

@@ -39,7 +39,6 @@
 		5323E6B10EAFCA74003A9687 /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = /System/Library/Frameworks/CoreVideo.framework; sourceTree = "<absolute>"; };
 		5323E6B50EAFCA7E003A9687 /* QTKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QTKit.framework; path = /System/Library/Frameworks/QTKit.framework; sourceTree = "<absolute>"; };
 		68E1788618A84E1E83CF3196 /* Resources.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = Resources.h; path = ../include/Resources.h; sourceTree = "<group>"; };
-		720A6AD91A10D886000E5C78 /* MeshWarper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = MeshWarper.h; path = ../include/MeshWarper.h; sourceTree = "<group>"; };
 		7256200F1A1B964200A09324 /* MeshWarpRetargetter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MeshWarpRetargetter.h; path = ../include/MeshWarpRetargetter.h; sourceTree = "<group>"; };
 		725620111A1F046B00A09324 /* convolve.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = convolve.h; sourceTree = "<group>"; };
 		725620121A1F046B00A09324 /* disjoint-set.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "disjoint-set.h"; sourceTree = "<group>"; };
@@ -164,7 +163,6 @@
 				729F79331A061C630036713A /* GradientSeamCarver.h */,
 				729F79321A061C570036713A /* CinderOpenCV.h */,
 				68E1788618A84E1E83CF3196 /* Resources.h */,
-				720A6AD91A10D886000E5C78 /* MeshWarper.h */,
 				7256200F1A1B964200A09324 /* MeshWarpRetargetter.h */,
 			);
 			name = Headers;

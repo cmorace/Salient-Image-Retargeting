@@ -38,11 +38,12 @@ dependencies: \
   ../include/OpenCV/include/opencv2/contrib/retina.hpp \
   ../include/OpenCV/include/opencv2/contrib/openfabmap.hpp \
   /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/OpenCV/include/CinderOpenCV.h \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/MeshWarper.h \
+  ../include/MeshWarper.h \
   /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/include/WarpBilinear.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/gl/Fbo.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/gl/Vbo.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/TriMesh.h \
   /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/include/Warp.h \
   /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/GradientSeamCarver.h \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/MeshWarpRetargetter.h
+  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/MeshWarpRetargetter.h \
+  ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/Rand.h

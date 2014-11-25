@@ -14,6 +14,9 @@
 #include "segment-image.h"
 #include "opencv2/opencv.hpp"
 #include "CinderOpenCV.h"
+//#include "MeshWarpRetargetter.h"
+
+
 
 class SaliencySegmentor {
 public:
@@ -21,12 +24,24 @@ public:
     
     enum SaliencyMethod
     {
-        Sobel,
+        Sobel, //using gradient for saliency for now
         Scharr,
         Canny, //todo
         Undefined
     };
     SaliencyMethod edgeDetect = SaliencyMethod::Sobel;
+    
+    struct Patch
+    {
+        unsigned long totalScore;
+        unsigned long totalPixels;
+        float normalScore;
+        std::vector<ci::Vec2i> pixels;
+        std::vector<int> edges;
+    };
+    typedef std::map<unsigned int, Patch> PatchMap;
+    typedef std::map<unsigned int, Patch>::iterator PatchMapIterator;
+    
     unsigned int scale = 1;
     unsigned int delta = 0;
     
@@ -35,6 +50,9 @@ public:
     cinder::Surface getSegmentedColorImage(cinder::Surface imgData);
     cinder::Surface getSaliencyMap(cinder::Surface imgData, SaliencyMethod edgeDetect);
     cinder::Surface getSegmentedSalientImage(cinder::Surface imgData);
+    //void setPatchCenters(void);
+    const PatchMap getPatchMap();
+    universe* getUniverse();
 
     float segBlurDeviation;
     float segNeighborThreshold;
@@ -44,12 +62,8 @@ public:
     double saliencyTime = 0.0;
     
 private:
-    struct SaliencyScore
-    {
-        unsigned long totalScore;
-        unsigned long totalPixels;
-        float normalScore;
-    };
+    PatchMap patchMap;
+    universe* currentUniverse;
     
     struct ColorScore
     {
@@ -66,11 +80,10 @@ private:
         int size;
     };
     
+    
     cinder::Timer* timer;
     cv::Mat currentGradientCV;
     cinder::Surface currentGradientSurface;
-    //universe* currentSegmentGraph;
-    
     image<rgb> *segmentImage(image<rgb> *im, float sigma, float c, int min_size, int *num_ccs);
     image<rgb> *segmentColorImage(image<rgb> *im, float sigma, float c, int min_size, int *num_ccs);
     cv::Mat mergeSegmentedAndSaliency(image<rgb> *im, float sigma, float c, int min_size, int *num_ccs);
@@ -84,7 +97,7 @@ SaliencySegmentor::SaliencySegmentor()
     segNeighborThreshold = 800;
     segMinSize = 100;
     timer = new cinder::Timer(false);
-    //currentSegmentGraph = new universe(0);
+    currentUniverse = new universe(0);
 }
 
 cinder::Surface SaliencySegmentor::getSegmentedImage(cinder::Surface imgData)
@@ -166,6 +179,12 @@ cv::Mat SaliencySegmentor::getSaliencyMapCV(cinder::Surface imgData, SaliencyMet
     convertScaleAbs( grad_y, abs_grad_y );
     currentGradientCV.release();
     addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, currentGradientCV);
+    //Fake Saliency
+    GaussianBlur( currentGradientCV, currentGradientCV, cv::Size(5,5), 10, 10, cv::BORDER_DEFAULT );
+    GaussianBlur( currentGradientCV, currentGradientCV, cv::Size(5,5), 10, 10, cv::BORDER_DEFAULT );
+    GaussianBlur( currentGradientCV, currentGradientCV, cv::Size(5,5), 10, 10, cv::BORDER_DEFAULT );
+    GaussianBlur( currentGradientCV, currentGradientCV, cv::Size(5,5), 10, 10, cv::BORDER_DEFAULT );
+    GaussianBlur( currentGradientCV, currentGradientCV, cv::Size(5,5), 10, 10, cv::BORDER_DEFAULT );
     GaussianBlur( currentGradientCV, currentGradientCV, cv::Size(5,5), 10, 10, cv::BORDER_DEFAULT );
     timer->stop();
     saliencyTime = timer->getSeconds();
@@ -278,7 +297,7 @@ cv::Mat SaliencySegmentor::mergeSegmentedAndSaliency(image<rgb> *im, float sigma
             u->join(a, b);
     }
     delete [] edges;
-    std::map<unsigned int, SaliencyScore> patchIndices;
+    patchMap.clear();
     
     // get gradient from OpenCV
     uchar* raster = currentGradientCV.data;
@@ -288,34 +307,35 @@ cv::Mat SaliencySegmentor::mergeSegmentedAndSaliency(image<rgb> *im, float sigma
         {
             uchar val = raster[y * w + x];
             int segmentIndex = u->find(y * w + x);
-            patchIndices[segmentIndex].totalScore += val;
-            patchIndices[segmentIndex].totalPixels += 1;
+            patchMap[segmentIndex].totalScore += val;
+            patchMap[segmentIndex].totalPixels += 1;
+            patchMap[segmentIndex].pixels.push_back(ci::Vec2i(x,y));
         }
     }
-    SaliencyScore firstScore = patchIndices.begin()->second;
+    Patch firstScore = patchMap.begin()->second;
     float highScore = 0;
     float lowScore = 1.f*firstScore.totalScore/firstScore.totalPixels;
-    for(std::map<unsigned int, SaliencyScore>::iterator patchIter = patchIndices.begin(); patchIter != patchIndices.end(); patchIter++)
+    for(PatchMapIterator patchIter = patchMap.begin(); patchIter != patchMap.end(); patchIter++)
     {
-        SaliencyScore score = patchIter->second;
-        score.normalScore = 1.f*score.totalScore/score.totalPixels;
+        Patch patch = patchIter->second;
+        patch.normalScore = 1.f*patch.totalScore/patch.totalPixels;
         
-        if(score.normalScore > highScore){
-            highScore = score.normalScore;
+        if(patch.normalScore > highScore){
+            highScore = patch.normalScore;
         }
-        else if(score.normalScore < lowScore){
-            lowScore = score.normalScore;
+        else if(patch.normalScore < lowScore){
+            lowScore = patch.normalScore;
         }
-        patchIter->second = score;
+        patchIter->second = patch;
     }
     
     // norm saliency values [0.1,1]
     float range = highScore - lowScore;
-    for(std::map<unsigned int, SaliencyScore>::iterator patchIter = patchIndices.begin(); patchIter != patchIndices.end(); patchIter++)
+    for(PatchMapIterator patchIter = patchMap.begin(); patchIter != patchMap.end(); patchIter++)
     {
-        SaliencyScore score = patchIter->second;
-        score.normalScore = (0.9f*(score.normalScore - lowScore)/range) + 0.1f;
-        patchIter->second = score;
+        Patch patch = patchIter->second;
+        patch.normalScore = (0.9f*(patch.normalScore - lowScore)/range) + 0.1f;
+        patchIter->second = patch;
     }
     
     // make saliency map
@@ -324,13 +344,25 @@ cv::Mat SaliencySegmentor::mergeSegmentedAndSaliency(image<rgb> *im, float sigma
     {
         for(int y=0; y<h; y++)
         {
-            result.at<uchar>(cv::Point(x,y)) = (uchar)(255*patchIndices[u->find(y * w + x)].normalScore);
+            result.at<uchar>(cv::Point(x,y)) = (uchar)(255*patchMap[u->find(y * w + x)].normalScore);
         }
     }
     *num_ccs = u->num_sets();
-    delete u;
+    delete currentUniverse;
+    currentUniverse = u;
     return result;
 }
+
+const SaliencySegmentor::PatchMap SaliencySegmentor::getPatchMap()
+{
+    return patchMap;
+}
+
+universe* SaliencySegmentor::getUniverse()
+{
+    return currentUniverse;
+}
+
 
 image<rgb> * SaliencySegmentor::segmentImage(image<rgb> *im, float sigma, float c, int min_size,
                                                     int *num_ccs)

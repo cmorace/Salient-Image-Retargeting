@@ -14,7 +14,6 @@
 #include "segment-image.h"
 #include "opencv2/opencv.hpp"
 #include "CinderOpenCV.h"
-//#include "MeshWarpRetargetter.h"
 
 
 
@@ -80,7 +79,6 @@ private:
         int size;
     };
     
-    
     cinder::Timer* timer;
     cv::Mat currentGradientCV;
     cinder::Surface currentGradientSurface;
@@ -89,12 +87,13 @@ private:
     cv::Mat mergeSegmentedAndSaliency(image<rgb> *im, float sigma, float c, int min_size, int *num_ccs);
     cv::Mat getSaliencyMapCV(cinder::Surface imgData, SaliencyMethod edgeDetect);
     EdgeGraph getEdges(image<rgb> *im, float sigma);
+    
 };
 
 SaliencySegmentor::SaliencySegmentor()
 {
-    segBlurDeviation = 0.8f;
-    segNeighborThreshold = 800;
+    segBlurDeviation = 0.6f;
+    segNeighborThreshold = 500;
     segMinSize = 100;
     timer = new cinder::Timer(false);
     currentUniverse = new universe(0);

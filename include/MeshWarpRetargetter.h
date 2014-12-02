@@ -9,7 +9,8 @@
 #ifndef ImageRetargeting_MeshWarpRetargetter_h
 #define ImageRetargeting_MeshWarpRetargetter_h
 
-//#include "SaliencySegmentor.h"
+#include "Eigen/IterativeLinearSolvers"
+#include "Eigen/SparseQR"
 #include "cinder/Rand.h"
 
 class MeshWarpRetargetter {
@@ -19,255 +20,239 @@ public:
     MeshWarpRetargetter();
     void initMesh(unsigned int imgWidth, unsigned int imgHeight);
     void initMesh(unsigned int imgWidth, unsigned int imgHeight, SaliencySegmentor* segmentor);
-    //void setEdges(SaliencySegmentor::PatchMap patchMap);
     void drawMesh(ci::gl::Texture texture);
     void drawEdges(ci::gl::Texture texture);
-    void getRigidTransformationTerms(void);
-    //void drawCenterEdge(ci::gl::Texture texture);
-    //void intitRepresentativeEdge();
-    //void resize(void);
-    //void setMesh();
+    void computeOptimizationMatrix(int newWidth, int newHeight);
+    void resizeMesh(int newWidth, int newHeight);
     
+    int quadSize = 30;
+    double transformationAlpha = 0.8;
     bool isDrawingWireFrame = true;
-    bool isDrawingVertices = false;
-    
-    bool isLinearInterpolated = true;
-    int quadSize = 50; // this is desired quad width set by user
-    
     
 private:
     struct MeshEdge{
-        ci::Vec2f a,b; // store endpoints vertices
+        // store endpoint vertices
+        ci::Vec2f a;
+        ci::Vec2f b;
+        
+        // store indices in optimization vector
+        int aX_Index;
+        int bX_Index;
+        int aY_Index;
+        int bY_Index;
     };
     std::vector<MeshEdge>	meshEdges;
-    typedef std::vector<MeshEdge>::iterator MeshEdgeIterator;
     
     struct MeshQuad{
-        ci::Vec2f t,b,l,r; // store quad vertices
+        // store quad vertices
+        ci::Vec2f tl;
+        ci::Vec2f tr;
+        ci::Vec2f br;
+        ci::Vec2f bl;
+        
+        // store indices in optimization vector
+        int tlX_Index;
+        int blX_Index;
+        int trX_Index;
+        int brX_Index;
+        int tlY_Index;
+        int trY_Index;
+        int blY_Index;
+        int brY_Index;
+        
     };
     std::vector<MeshQuad>	meshQuads;
-    SaliencySegmentor::PatchMap currentPatchMap;
-    MeshEdge getEdge(int x, int y);
     
-    //Vec2f getPoint(int col, int row, int yRes) const;
-    //Vec2f cubicInterpolate( const std::vector<Vec2f> &knots, float t ) const;
-    //void setNumControlX(int xRes, int yRes);
-    //void setNumControlY(int xRes, int yRes);
+    std::vector<int>	topBoundaryIndices;
+    std::vector<int>	bottomBoundaryIndices;
+    std::vector<int>	leftBoundaryIndices;
+    std::vector<int>	rightBoundaryIndices;
     
     ci::gl::VboMeshRef vboMesh;
-    float quadWidth, quadHeight;  // this is actual quad width and height
-    unsigned int numVertices;
-    unsigned int numEdges;
-    unsigned int numQuads;
-    unsigned int numPatches;
-    unsigned int m;
-    unsigned int mPrime;
-    unsigned int n;
-    unsigned int nPrime;
+    
+    struct MeshPatch{
+        SaliencySegmentor::Patch p;
+        MeshEdge c;
+        std::vector<MeshEdge> patchEdges;
+        std::vector<Eigen::Matrix2d> transformation;
+        std::vector<Eigen::Matrix2d> linearTransformation;
+    };
+    std::vector<MeshPatch> meshPatches;
+    
+    SaliencySegmentor::PatchMap currentPatchMap;
+    
+    Eigen::VectorXd vertexVectorX;
+    Eigen::VectorXd answerVectorB;
+    
+    
+    
+    float quadWidth, quadHeight;
+    int numXVertices;
+    int numYVertices;
+    int numVertices;
+    int numEdges;
+    int numQuads;
+    int mOriginal;
+    int nOriginal;
+    
+
+    Eigen::Matrix2d computeTransformation(MeshEdge c, MeshEdge e);
+    Eigen::Matrix2d computeLinearTransformation(Eigen::Matrix2d, int newWidth, int newHeight, int oldWidth, int oldHeight);
 };
 
 
 MeshWarpRetargetter::MeshWarpRetargetter()
 {
     printf("\nMeshWarpRetargetter");
+    vertexVectorX = Eigen::VectorXd();
 }
+
 
 void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight)
 {
-    quadWidth = quadHeight = quadSize;
-    m = imgHeight;
-    n = imgWidth;
-    int const VERTICES_Y = m / quadHeight + 1;
-    int const VERTICES_X = n / quadWidth + 1;
+    mOriginal = imgHeight;
+    nOriginal = imgWidth;
+    numXVertices = nOriginal / quadSize + 1;
+    numYVertices = mOriginal / quadSize + 1;
+    numVertices = numXVertices * numYVertices;
+    numEdges = 2 * (numYVertices - 1) * ( numXVertices - 1 ) + (numXVertices + numYVertices - 2);
+    numQuads = ( numXVertices - 1 ) * ( numYVertices - 1 );
     
-    numVertices = VERTICES_X * VERTICES_Y;
-    numEdges = 2 * (VERTICES_Y - 1) * ( VERTICES_X - 1 ) + (VERTICES_X + VERTICES_Y - 2);
-    numQuads = ( VERTICES_X - 1 ) * ( VERTICES_Y - 1 );
+    quadHeight = mOriginal / (numYVertices - 1.f);
+    quadWidth = nOriginal / (numXVertices - 1.f);
     
-    printf("\nm = %d", m);
-    printf("\nn = %d", n);
-    printf("\nVERTICES_X = %d", VERTICES_X);
-    printf("\nVERTICES_Y = %d", VERTICES_Y);
-    printf("\nnumVertices = %d", numVertices);
-    printf("\nnumEdges = %d", numEdges);
-    printf("\nnumQuads = %d", numQuads);
-    
-    quadHeight = m / (VERTICES_Y - 1.f);
-    quadWidth = n / (VERTICES_X - 1.f);
-    
-    printf("\n(quadWidth,quadWidth) = (%f,%f)",quadWidth,quadHeight);
-    
+    //setup vbo and texture map
+    std::vector<uint32_t> indices;
+    std::vector<ci::Vec2f> texCoords;
     cinder::gl::VboMesh::Layout layout;
     layout.setStaticIndices();
     layout.setDynamicPositions();
     layout.setStaticTexCoords2d();
     vboMesh = ci::gl::VboMesh::create( numVertices, numQuads * 4, layout, GL_QUADS );
-    
-    // buffer our static data - the texcoords and the indices
-    std::vector<uint32_t> indices;
-    std::vector<ci::Vec2f> texCoords;
     gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
-    // buffer edge and quad indices for retargetting
+    
+    //setup mesh optimization
+    vertexVectorX.resize(numVertices * 2);
     meshEdges.clear();
     meshQuads.clear();
     
-    for( int x = 0; x < VERTICES_X; ++x ) {
-        for( int y = 0; y < VERTICES_Y; ++y ) {
-            // set Texture coordinates
-            ci::Vec2f v = Vec2f( x / (VERTICES_X-1.f), y / (VERTICES_Y-1.f) );
-            // the texture coordinates are mapped to [0,1]x[0,1]
+    int vertexCounter = 0;
+    for( int x = 0; x < numXVertices; ++x ) {
+        for( int y = 0; y < numYVertices; ++y ) {
+            
+            // texture coordinates mapped to [0,1]x[0,1]
+            ci::Vec2f v = Vec2f( x / (numXVertices-1.f),
+                                 y / (numYVertices-1.f) );
+            
             texCoords.push_back( v );
-            // the vertex coordinates are mapped to [0,n-1]x[0,m-1]
-            v.x *= n-1;
-            v.y *= m-1;
+            
+            // the vertex coordinates mapped to [0,n-1]x[0,m-1]
+            v.x *= nOriginal-1;
+            v.y *= mOriginal-1;
             iter.setPosition(v.x, v.y, 0.0f );
             ++iter;
             
-            // create a quad for each vertex, except for along the bottom and right edges
-            if( ( x + 1 < VERTICES_X ) && ( y + 1 < VERTICES_Y ) ) {
-                int topLeft = (x+0) * VERTICES_Y + (y+0);
-                int topRight = (x+1) * VERTICES_Y + (y+0);
-                int bottomRight = (x+1) * VERTICES_Y + (y+1);
-                int bottomLeft = (x+0) * VERTICES_Y + (y+1);
+            // save in vector for initial guess for optimization solver
+            vertexVectorX(vertexCounter) = v.x;
+            vertexVectorX(numVertices + vertexCounter) = v.y;
+            vertexCounter++;
+            
+            // create a quad and 2 edges for each vertex, except along the bottom and right edges
+            if( ( x + 1 < numXVertices ) && ( y + 1 < numYVertices ) ) {
+                int topLeft = (x+0) * numYVertices + (y+0);
+                int topRight = (x+1) * numYVertices + (y+0);
+                int bottomRight = (x+1) * numYVertices + (y+1);
+                int bottomLeft = (x+0) * numYVertices + (y+1);
                 indices.push_back(topLeft);
                 indices.push_back(topRight);
                 indices.push_back(bottomRight);
                 indices.push_back(bottomLeft);
                 
-                Vec2f vTopRight = Vec2f(v.x+quadWidth , v.y);
-                Vec2f vBottomRight = Vec2f(v.x+quadWidth , v.y+quadHeight);
-                Vec2f vBottomLeft = Vec2f(v.x , v.y+quadHeight);
+                //calculate quad vertices
+                Vec2f vTopRight = Vec2f(v.x + quadWidth , v.y);
+                Vec2f vBottomRight = Vec2f(v.x + quadWidth , v.y + quadHeight);
+                Vec2f vBottomLeft = Vec2f(v.x , v.y + quadHeight);
                 
-                MeshEdge topEdge = {v,vTopRight};
-                MeshEdge leftEdge = {v,vBottomLeft};
+                // save edges
+                MeshEdge topEdge = {v, vTopRight,
+                                    topLeft, topRight,
+                                    topLeft+numVertices, topRight+numVertices};
+                
+                MeshEdge leftEdge = {v, vBottomLeft,
+                                     topLeft, bottomLeft,
+                                     topLeft+numVertices, bottomLeft+numVertices,};
+                
                 meshEdges.push_back(topEdge);
                 meshEdges.push_back(leftEdge);
                 
-                MeshQuad quad = {v,vTopRight,vBottomRight,vBottomLeft};
+                //save quad
+                MeshQuad quad = {v, vTopRight, vBottomRight, vBottomLeft,
+                                 topLeft, topRight, bottomRight, bottomLeft,
+                                 topLeft+numVertices, topRight+numVertices, bottomRight+numVertices, bottomLeft+numVertices};
+                
                 meshQuads.push_back(quad);
             }
-            else if(y+1 == VERTICES_Y && x+1 != VERTICES_X)
+            
+            // bottom boundary but not bottom right corner
+            else if(y+1 == numYVertices && x+1 != numXVertices)
             {
+                int topLeft = (x+0) * numYVertices + (y+0);
+                int topRight = (x+1) * numYVertices + (y+0);
+                
                 Vec2f vTopRight = Vec2f(v.x+quadWidth , v.y);
-                MeshEdge topEdge = {v,vTopRight};
+                
+                MeshEdge topEdge = {v, vTopRight,
+                                    topLeft, topRight,
+                                    topLeft+numVertices, topRight+numVertices};
+                
                 meshEdges.push_back(topEdge);
+
             }
-            else if(x+1 == VERTICES_X && y+1 != VERTICES_Y)
+            // right boundary but not bottom right corner
+            else if(x+1 == numXVertices && y+1 != numYVertices)
             {
+                int topLeft = (x+0) * numYVertices + (y+0);
+                int bottomLeft = (x+0) * numYVertices + (y+1);
                 Vec2f vBottomLeft = Vec2f(v.x, v.y + quadHeight);
-                MeshEdge leftEdge = {v,vBottomLeft};
+                MeshEdge leftEdge = {v, vBottomLeft,
+                                     topLeft, bottomLeft,
+                                     topLeft+numVertices, bottomLeft+numVertices,};
                 meshEdges.push_back(leftEdge);
             }
-            
         }
     }
-    printf("\nnumEdges = %lu", meshEdges.size());
-    printf("\nnumQuads = %lu", meshQuads.size());
-    
     vboMesh->bufferIndices( indices );
     vboMesh->bufferTexCoords2d( 0, texCoords );
+    
+    //set boundary indices
+    topBoundaryIndices.clear();
+    bottomBoundaryIndices.clear();
+    leftBoundaryIndices.clear();
+    rightBoundaryIndices.clear();
+    
+    //top and bottom boundary indices in optimization answerVectorB
+    for( int x = 0; x < numXVertices; ++x ) {
+        topBoundaryIndices.push_back(x * numYVertices + numVertices);
+        bottomBoundaryIndices.push_back((x+1) * numYVertices -1 + numVertices);
+    }
+    //left and right boundary indices in optimization answerVectorB
+    for( int y = 0; y < numYVertices; ++y ) {
+        leftBoundaryIndices.push_back(y);
+        rightBoundaryIndices.push_back(numVertices - 1 - numYVertices + y);
+    }
 }
 
 
 void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight, SaliencySegmentor* segmentor)
 {
-    quadWidth = quadHeight = quadSize;
-    m = imgHeight;
-    n = imgWidth;
-    int const VERTICES_Y = m / quadHeight + 1;
-    int const VERTICES_X = n / quadWidth + 1;
-    
-    numVertices = VERTICES_X * VERTICES_Y;
-    numEdges = 2 * (VERTICES_Y - 1) * ( VERTICES_X - 1 ) + (VERTICES_X + VERTICES_Y - 2);
-    numQuads = ( VERTICES_X - 1 ) * ( VERTICES_Y - 1 );
-    
-    printf("\nm = %d", m);
-    printf("\nn = %d", n);
-    printf("\nVERTICES_X = %d", VERTICES_X);
-    printf("\nVERTICES_Y = %d", VERTICES_Y);
-    printf("\nnumVertices = %d", numVertices);
-    printf("\nnumEdges Expected = %d", numEdges);
-    printf("\nnumQuads = %d", numQuads);
-    
-    quadHeight = m / (VERTICES_Y - 1.f);
-    quadWidth = n / (VERTICES_X - 1.f);
-    
-    printf("\n(quadWidth,quadHeight) = (%f,%f)",quadWidth,quadHeight);
-    
-    gl::VboMesh::Layout layout;
-    layout.setStaticIndices();
-    layout.setDynamicPositions();
-    layout.setStaticTexCoords2d();
-    vboMesh = ci::gl::VboMesh::create( numVertices, numQuads * 4, layout, GL_QUADS );
-    
-    // buffer our static data - the texcoords and the indices
-    std::vector<uint32_t> indices;
-    std::vector<Vec2f> texCoords;
-    gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
-    // buffer edge and quad indices for retargetting
-    meshEdges.clear();
-    meshQuads.clear();
-    
-    for( int x = 0; x < VERTICES_X; ++x )
-    {
-        for( int y = 0; y < VERTICES_Y; ++y )
-        {
-            // set Texture coordinates
-            Vec2f v = Vec2f( x / (VERTICES_X-1.f), y / (VERTICES_Y-1.f) );
-            // the texture coordinates are mapped to [0,1] x [0,1]
-            texCoords.push_back( v );
-            v.x *= n-1;
-            v.y *= m-1;
-            // the vertex coordinates are mapped to [0,n-1] x [0,m-1]
-            iter.setPosition( v.x, v.y, 0.0f );
-            ++iter;
-            
-            // create a quad for each vertex, except for along the bottom and right edges
-            if( ( x + 1 < VERTICES_X ) && ( y + 1 < VERTICES_Y ) )
-            {
-                int topLeft = (x+0) * VERTICES_Y + (y+0);
-                int topRight = (x+1) * VERTICES_Y + (y+0);
-                int bottomRight = (x+1) * VERTICES_Y + (y+1);
-                int bottomLeft = (x+0) * VERTICES_Y + (y+1);
-                indices.push_back(topLeft);
-                indices.push_back(topRight);
-                indices.push_back(bottomRight);
-                indices.push_back(bottomLeft);
-                
-                Vec2f vTopRight = Vec2f(v.x+quadWidth , v.y);
-                Vec2f vBottomRight = Vec2f(v.x+quadWidth , v.y+quadHeight);
-                Vec2f vBottomLeft = Vec2f(v.x , v.y+quadHeight);
-                
-                MeshEdge topEdge = {v,vTopRight};
-                MeshEdge leftEdge = {v,vBottomLeft};
-                meshEdges.push_back(topEdge);
-                meshEdges.push_back(leftEdge);
-                
-                MeshQuad quad = {v,vTopRight,vBottomRight,vBottomLeft};
-                meshQuads.push_back(quad);
-            }
-            else if(y+1 == VERTICES_Y && x+1 != VERTICES_X)
-            {
-                Vec2f vTopRight = Vec2f(v.x+quadWidth , v.y);
-                MeshEdge topEdge = {v,vTopRight};
-                meshEdges.push_back(topEdge);
-            }
-            else if(x+1 == VERTICES_X && y+1 != VERTICES_Y)
-            {
-                Vec2f vBottomLeft = Vec2f(v.x, v.y + quadHeight);
-                MeshEdge leftEdge = {v,vBottomLeft};
-                meshEdges.push_back(leftEdge);
-            }
-            
-        }
-    }
-    printf("\nnumEdges = %lu", meshEdges.size());
-    printf("\nnumQuads = %lu", meshQuads.size());
-    
+    initMesh(imgWidth, imgHeight);
     universe* u = segmentor->getUniverse();
-    currentPatchMap.clear();
+    
+    currentPatchMap.clear(); // todo:: should also clean up currentPatchMap contents here
+    
     currentPatchMap = segmentor->getPatchMap();
     
+    // for every edge find its patch (we use middle pixel)
     int edgeIndex = 0;
     for(std::vector<MeshEdge>::iterator edgeIter = meshEdges.begin(); edgeIter != meshEdges.end(); edgeIter++, edgeIndex++)
     {
@@ -275,12 +260,530 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
         int edgeX = round(midPoint.x);
         int edgeY = round(midPoint.y);
         //printf("\n(x,y) = (%d,%d)",edgeX,edgeY);
-        int patchID = u->find(n * edgeY + edgeX);
+        int patchID = u->find(nOriginal * edgeY + edgeX);
         currentPatchMap[patchID].edges.push_back(edgeIndex);
     }
-    vboMesh->bufferIndices( indices );
-    vboMesh->bufferTexCoords2d( 0, texCoords );
+    
+    meshPatches.clear();  // todo:: should also clean up meshPatches contents here
+    
+    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin(); patchIter!= currentPatchMap.end(); patchIter++)
+    {
+        SaliencySegmentor::Patch p = patchIter->second;
+        MeshEdge c;
+        std::vector<MeshEdge> patchEdges;
+        std::vector<Eigen::Matrix2d> transformations;
+        if(p.edges.size() > 0)
+        {
+            c = meshEdges[p.edges[0]];
+            for (std::vector<int>::iterator edgeIndexIter = p.edges.begin(); edgeIndexIter != p.edges.end(); edgeIndexIter++) {
+                MeshEdge patchEdge = meshEdges[*edgeIndexIter];
+                patchEdges.push_back(patchEdge);
+                transformations.push_back(computeTransformation(c,patchEdge));
+            }
+        }
+        MeshPatch meshPatch = {p,c,patchEdges,transformations};
+        meshPatches.push_back(meshPatch);
+    }
 }
+
+Eigen::Matrix2d MeshWarpRetargetter::computeTransformation(MeshEdge c, MeshEdge e)
+{
+    double cx = c.a.x - c.b.x;
+    double cy = c.a.y - c.b.y;
+    double ex = e.a.x - e.b.x;
+    double ey = e.a.y - e.b.y;
+    double denom = cx*cx + cy*cy;
+    double s = (cx*ex + cy*ey) / denom;
+    double r = (cy*ex - cx*ey) / denom;
+    Eigen::Matrix2d T;
+    
+    T << s , r,
+        -r , s;
+    //std::cout << "T = " << std::endl << T << std::endl;
+    return T;
+}
+
+Eigen::Matrix2d MeshWarpRetargetter::computeLinearTransformation(Eigen::Matrix2d T, int newWidth, int newHeight, int oldWidth, int oldHeight)
+{
+    Eigen::Matrix2d L;
+    
+    L << (1.0 * newWidth) / oldWidth , 0,
+          0 , (1.0 * newHeight) / oldHeight;
+    //std::cout << "L*T = " << std::endl << L*T << std::endl;
+    return L*T;
+}
+
+
+void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
+{
+    //compute the edge transformations for every patch
+    std::vector<Eigen::Triplet<double>> matrixA_Entries;
+    
+    for (std::vector<MeshPatch>::iterator iter = meshPatches.begin(); iter != meshPatches.end(); iter++) {
+        MeshPatch p = *iter;
+        if(p.transformation.size() > 0)
+        {
+            std::vector<Eigen::Matrix2d> linearT;
+            for (std::vector<Eigen::Matrix2d>::iterator iter = p.transformation.begin(); iter != p.transformation.end(); iter++) {
+                linearT.push_back(computeLinearTransformation(*iter,newWidth,newHeight,nOriginal,mOriginal));
+            }
+        }
+    }
+    
+    /////TEST
+    printf("\ntest");
+    Eigen::VectorXd x2(2*numVertices);
+    
+    int vertexCounter = 0;
+    for( int x = 0; x < numXVertices; ++x ) {
+        for( int y = 0; y < numYVertices; ++y ) {
+            x2(vertexCounter) = vertexVectorX(vertexCounter);
+            x2(numVertices + vertexCounter) = vertexVectorX(numVertices + vertexCounter);
+            vertexCounter++;
+        }
+    }
+    
+    for (std::vector<MeshPatch>::iterator iter = meshPatches.begin(); iter != meshPatches.end(); iter++) {
+        MeshPatch p = *iter;
+        
+        if(p.patchEdges.size() > 0)
+        {
+            printf("\n edges = %lu",p.patchEdges.size());
+            MeshEdge c = p.c;
+            int edgeCounter = 0;
+            for (std::vector<Eigen::Matrix2d>::iterator iter = p.linearTransformation.begin(); iter != p.linearTransformation.end(); iter++,edgeCounter++) {
+                Eigen::Matrix2d T = *iter;
+                double s = T(0,0);
+                double r = T(0,1);
+                
+                MeshEdge edgeI = p.patchEdges[edgeCounter];
+                double cx = vertexVectorX(c.aX_Index) - vertexVectorX(c.bX_Index);
+                double cy = vertexVectorX(c.aY_Index) - vertexVectorX(c.bY_Index);
+                
+                x2(edgeI.aX_Index) = vertexVectorX(edgeI.bX_Index) + s*cx + r*cy;
+                x2(edgeI.aY_Index) = vertexVectorX(edgeI.bY_Index) - r*cx + s*cy;
+                
+                x2(edgeI.bX_Index) = vertexVectorX(edgeI.aX_Index) - s*cx - r*cy;
+                x2(edgeI.bY_Index) = vertexVectorX(edgeI.aY_Index) + r*cx - s*cy;
+            }
+        }
+    }
+    
+    gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
+    vertexCounter = 0;
+    for( int x = 0; x < numXVertices; ++x ) {
+        for( int y = 0; y < numYVertices; ++y ) {
+            float vX = x2(vertexCounter);
+            float vY = x2((numVertices + vertexCounter));
+            iter.setPosition(vX, vY, 0.0f );
+            ++iter;
+            vertexCounter++;
+        }
+    }
+    
+    /*
+    Eigen::SparseMatrix<double> B(66790,2*numVertices);
+    
+    // D_st Matrix
+    
+    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin(); patchIter!= currentPatchMap.end(); patchIter++)
+    {
+        SaliencySegmentor::Patch p = patchIter->second;
+        std::vector<int> edgeIndices = p.edges;
+        if(edgeIndices.size() > 0)
+        {
+            int patchEdgeIndex = 0;
+            double patchSaliency = p.normalScore * transformationAlpha;
+            std::vector<int>::iterator edgeIter = edgeIndices.begin();
+            MeshEdge edgeC = meshEdges[*edgeIter];
+            edgeIter++;
+            for(; edgeIter!= edgeIndices.end(); edgeIter++)
+            {
+                MeshEdge edgeI = meshEdges[*edgeIter];
+                
+                Eigen::Matrix2d T = patchTransformations[patchIndex].transformation[patchEdgeIndex];
+                
+                double s = T(0,0)*patchSaliency;
+                double r = T(0,1)*patchSaliency;
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeI.aX_Index,patchSaliency));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeI.bX_Index,-patchSaliency));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.aX_Index,-s));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.aX_Index,-r));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.bX_Index,s));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.bX_Index,r));
+                printf("\n\ntest\n");
+                B.insert(rowIndex,edgeI.aX_Index) = patchSaliency;
+                B.insert(rowIndex,edgeI.bX_Index) = -patchSaliency;
+                B.insert(rowIndex,edgeC.aX_Index) = -s;
+                B.insert(rowIndex,edgeC.aX_Index) = -r;
+                B.insert(rowIndex,edgeC.bX_Index) = s;
+                B.insert(rowIndex,edgeC.bX_Index) = r;
+                
+                rowIndex++;
+                
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeI.aY_Index,patchSaliency));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeI.bY_Index,-patchSaliency));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.aX_Index,r));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.bX_Index,-r));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.aY_Index,-s));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.bY_Index,s));
+                
+                B.insert(rowIndex,edgeI.aY_Index) = patchSaliency;
+                B.insert(rowIndex,edgeI.bY_Index) = -patchSaliency;
+                B.insert(rowIndex,edgeC.aX_Index) = r;
+                B.insert(rowIndex,edgeC.bX_Index) = -r;
+                B.insert(rowIndex,edgeC.aY_Index) = -s;
+                B.insert(rowIndex,edgeC.bY_Index) = s;
+                
+                rowIndex++;
+                patchEdgeIndex++;
+            }
+        }
+        patchIndex++;
+    }
+    
+    patchIndex = 0;
+    
+    // D_lt Matrix
+    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin(); patchIter!= currentPatchMap.end(); patchIter++)
+    {
+        SaliencySegmentor::Patch p = patchIter->second;
+        std::vector<int> edgeIndices = p.edges;
+        if(edgeIndices.size() > 0)
+        {
+            int patchEdgeIndex = 0;
+            double patchSaliency = p.normalScore * (1-transformationAlpha);
+            std::vector<int>::iterator edgeIter = edgeIndices.begin();
+            MeshEdge edgeC = meshEdges[*edgeIter];
+            edgeIter++;
+            for(; edgeIter!= edgeIndices.end(); edgeIter++)
+            {
+                MeshEdge edgeI = meshEdges[*edgeIter];
+                
+                Eigen::Matrix2d T = patchTransformations[patchIndex].linearTransformation[patchEdgeIndex];
+                
+                double s = T(0,0)*patchSaliency;
+                double r = T(0,1)*patchSaliency;
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeI.aX_Index,patchSaliency));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeI.bX_Index,-patchSaliency));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.aX_Index,-s));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.aX_Index,-r));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.bX_Index,s));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.bX_Index,r));
+                
+                B.insert(rowIndex,edgeI.aX_Index) = patchSaliency;
+                B.insert(rowIndex,edgeI.bX_Index) = -patchSaliency;
+                B.insert(rowIndex,edgeC.aX_Index) = -s;
+                B.insert(rowIndex,edgeC.aX_Index) = -r;
+                B.insert(rowIndex,edgeC.bX_Index) = s;
+                B.insert(rowIndex,edgeC.bX_Index) = r;
+                
+                rowIndex++;
+                
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeI.aY_Index,patchSaliency));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeI.bY_Index,-patchSaliency));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.aX_Index,r));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.bX_Index,-r));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.aY_Index,-s));
+                matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,edgeC.bY_Index,s));
+                
+                B.insert(rowIndex,edgeI.aY_Index) = patchSaliency;
+                B.insert(rowIndex,edgeI.bY_Index) = -patchSaliency;
+                B.insert(rowIndex,edgeC.aX_Index) = r;
+                B.insert(rowIndex,edgeC.bX_Index) = -r;
+                B.insert(rowIndex,edgeC.aY_Index) = -s;
+                B.insert(rowIndex,edgeC.bY_Index) = s;
+                
+                rowIndex++;
+                patchEdgeIndex++;
+            }
+        }
+        patchIndex++;
+    }
+    
+    //D_or Matrix
+    for (std::vector<MeshQuad>::iterator quadIter = meshQuads.begin(); quadIter!=meshQuads.end(); quadIter++) {
+        MeshQuad currentQuad = *quadIter;
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,currentQuad.tlY_Index,1));
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,currentQuad.trY_Index,-1));
+        
+        B.insert(rowIndex,currentQuad.tlY_Index) = 1;
+        B.insert(rowIndex,currentQuad.trY_Index) = -1;
+        
+        rowIndex++;
+        
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,currentQuad.blY_Index,1));
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,currentQuad.brY_Index,-1));
+        
+        B.insert(rowIndex,currentQuad.blY_Index) = 1;
+        B.insert(rowIndex,currentQuad.brY_Index) = -1;
+        
+        rowIndex++;
+        
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,currentQuad.tlX_Index,1));
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,currentQuad.blX_Index,-1));
+        
+        B.insert(rowIndex,currentQuad.tlX_Index) = 1;
+        B.insert(rowIndex,currentQuad.blX_Index) = -1;
+        
+        rowIndex++;
+        
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,currentQuad.trX_Index,1));
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,currentQuad.brX_Index,-1));
+        
+        B.insert(rowIndex,currentQuad.trX_Index) = 1;
+        B.insert(rowIndex,currentQuad.brX_Index) = -1;
+        
+        rowIndex++;
+    }
+    
+    for (std::vector<int>::iterator boundaryIter = topBoundaryIndices.begin(); boundaryIter!=topBoundaryIndices.end(); boundaryIter++) {
+        int topVertexY_Index = *boundaryIter;
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,topVertexY_Index,1));
+        
+        B.insert(rowIndex,topVertexY_Index) = 1;
+        
+        rowIndex++;
+    }
+    int bottomIndexStart = rowIndex;
+    for (std::vector<int>::iterator boundaryIter = bottomBoundaryIndices.begin(); boundaryIter!=bottomBoundaryIndices.end(); boundaryIter++) {
+        int bottomVertexY_Index = *boundaryIter;
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,bottomVertexY_Index,numVertices));
+        
+        B.insert(rowIndex,bottomVertexY_Index) = numVertices;
+        
+        rowIndex++;
+    }
+    int bottomIndexEnd = rowIndex;
+    
+    for (std::vector<int>::iterator boundaryIter = leftBoundaryIndices.begin(); boundaryIter!=leftBoundaryIndices.end(); boundaryIter++) {
+        int leftVertexX_Index = *boundaryIter;
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,leftVertexX_Index,1));
+        
+        B.insert(rowIndex,leftVertexX_Index) = 1;
+
+        rowIndex++;
+    }
+    int rightIndexStart = rowIndex;
+    for (std::vector<int>::iterator boundaryIter = rightBoundaryIndices.begin(); boundaryIter!=rightBoundaryIndices.end(); boundaryIter++) {
+        int rightVertexX_Index = *boundaryIter;
+        matrixA_Entries.push_back(Eigen::Triplet<double>(rowIndex,rightVertexX_Index,numVertices));
+        
+        B.insert(rowIndex,rightVertexX_Index) = numVertices;
+        
+        rowIndex++;
+        //
+    }
+    int rightIndexEnd = rowIndex;
+    
+    printf("\nnbRows = %d",rowIndex);
+    Eigen::SparseMatrix<double> A(rowIndex,2*numVertices);
+    Eigen::VectorXd x2(2*numVertices);
+    Eigen::VectorXd b(rowIndex);
+    
+    //set A
+    A.setFromTriplets(matrixA_Entries.begin(), matrixA_Entries.end());
+    
+    // set b
+    for (int i=0; i<rowIndex; i++) {
+        if(i >= bottomIndexStart && i <bottomIndexEnd)
+        {
+           b(i) = 1.0*numVertices*newHeight;
+        }
+        else if(i >= rightIndexStart && i <rightIndexEnd)
+        {
+            b(i) = 1.0*numVertices*newWidth;
+        }
+        else
+        {
+           b(i) = 0.0;
+        }
+    }
+    
+    // check A's values
+    for (std::vector<Eigen::Triplet<double>>::iterator i = matrixA_Entries.begin();
+         i!= matrixA_Entries.end(); i++) {
+        Eigen::Triplet<double> t = *i;
+        
+        double mv = B.coeff(t.row(), t.col());
+        double tv = t.value();
+       
+        printf("\n%f = %f",mv,tv);
+    }
+    
+    */
+    
+    /*
+    A.makeCompressed();
+    Eigen::SparseQR<Eigen::SparseMatrix<double>,Eigen::COLAMDOrdering<int> > solver;
+    solver.analyzePattern(A);
+    solver.factorize(A);
+    x2 = solver.solve(b);
+    
+    
+    
+    Eigen::BiCGSTAB< Eigen::SparseMatrix<double> > cg;
+    cg.compute(A.transpose()*A);
+    x2 = cg.solveWithGuess(A.transpose()*b, vertexVectorX);
+    std::cout << "#iterations:     " << cg.iterations() << std::endl;
+    std::cout << "estimated error: " << cg.error()      << std::endl;
+    
+    
+    gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
+    int vertexCounter = 0;
+    for( int x = 0; x < numXVertices; ++x ) {
+        for( int y = 0; y < numYVertices; ++y ) {
+            float vX = x2(vertexCounter);
+            float vY = x2((numVertices + vertexCounter));
+            iter.setPosition(vX, vY, 0.0f );
+            ++iter;
+            vertexCounter++;
+        }
+    }
+     */
+    
+    
+    
+}
+
+/*
+Eigen::SparseMatrix<double> MeshWarpRetargetter::computeTransformationMatrix(std::vector<MeshWarpRetargetter::PatchTransformation> T)
+{
+    //Eigen::SparseMatrix<double> Ad
+    int patchCounter = 0;
+    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin();
+        patchIter!= currentPatchMap.end();
+        patchIter++, patchCounter++)
+    {
+        SaliencySegmentor::Patch patch = patchIter->second;
+        std::vector<int> patchEdgeIndices = patch.edges;
+        std::vector<Eigen::Matrix2d> transformation = T[patchCounter].transformation;
+    }
+}
+
+Eigen::SparseMatrix<double> MeshWarpRetargetter::computeLinearTransformationMatrix(std::vector<MeshWarpRetargetter::PatchTransformation> LT)
+{
+    int patchCounter = 0;
+    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin(); patchIter!= currentPatchMap.end(); patchIter++, patchCounter++)
+    {
+        SaliencySegmentor::Patch patch = patchIter->second;
+        std::vector<int> patchEdgeIndices = patch.edges;
+        if(patchEdgeIndices.size() > 0)
+        {
+            std::vector<Eigen::Matrix2d> linearTransformation = LT[patchCounter].linearTransformation;
+            if(linearTransformation.size() == patchEdgeIndices.size())
+            {
+                printf("\nok");
+            }
+            else
+            {
+               printf("\nwe have a problem");
+            }
+        }
+    }
+}
+ */
+
+void MeshWarpRetargetter::resizeMesh(int newWidth, int newHeight)
+{
+    
+    
+    /*
+    for(int i=0; i<2*numVertices; i++){
+        
+        vertexVectorX(i) += 0.5-Rand::randFloat(1.f);
+    }
+    */
+    
+    gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
+    int vertexCounter = 0;
+    for( int x = 0; x < numXVertices; ++x ) {
+        for( int y = 0; y < numYVertices; ++y ) {
+            float vX = vertexVectorX(vertexCounter);
+            float vY = vertexVectorX((numVertices + vertexCounter));
+            iter.setPosition(vX, vY, 0.0f );
+            ++iter;
+            vertexCounter++;
+        }
+    }
+    // fill A and b
+    
+    /*
+    Eigen::ConjugateGradient<Eigen::SparseMatrix<double> > cg;
+    cg.compute(A);
+    //x = cg.solve(b);
+    std::cout << "#iterations:     " << cg.iterations() << std::endl;
+    std::cout << "estimated error: " << cg.error()      << std::endl;
+    // update b, and solve again
+    x = cg.solve(b);
+     */
+}
+
+
+void MeshWarpRetargetter::drawMesh(ci::gl::Texture texture)
+{
+    if(!vboMesh) return;
+    texture.enableAndBind();
+    // save current texture mode, drawing color, line width and depth buffer state
+    glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    gl::disableDepthRead();
+    gl::disableDepthWrite();
+    
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    
+    gl::draw( vboMesh );
+    
+    if( isDrawingWireFrame ) {
+        glDisable( GL_TEXTURE_2D );
+        gl::color( ColorA(1, 1, 1, 0.5f) );
+        gl::enableAlphaBlending();
+        gl::enableWireframe();
+        gl::draw( vboMesh );
+        gl::disableAlphaBlending();
+        gl::disableWireframe();
+    }
+    glPopAttrib();
+}
+
+void MeshWarpRetargetter::drawEdges(ci::gl::Texture texture)
+{
+    //gl::draw(texture);
+    glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT | GL_DEPTH_BUFFER_BIT);
+    gl::disableDepthRead();
+    gl::disableDepthWrite();
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    glDisable( GL_TEXTURE_2D );
+    gl::enableAlphaBlending();
+    
+    glLineWidth(2.0f);
+    glBegin( GL_LINES );
+    
+    
+    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin(); patchIter!= currentPatchMap.end(); patchIter++){
+        std::vector<int> patchEdgeIndices = patchIter->second.edges;
+        float patchSaliencyScore = patchIter->second.normalScore;
+        for(std::vector<int>::iterator edgeIndexIter = patchEdgeIndices.begin(); edgeIndexIter!=patchEdgeIndices.end();edgeIndexIter++)
+        {
+            // gl::color( ColorA(1, 0, 0, patchSaliencyScore) );
+            float red = 0.2f+patchSaliencyScore;
+            float green = 0.2f+patchSaliencyScore;
+            float blue = 0.2f+patchSaliencyScore;
+            float alpha = 0.2f+patchSaliencyScore;
+            gl::color( ColorA(red,green,blue,alpha) );
+            MeshEdge edge = meshEdges[*edgeIndexIter];
+            ci::Vec2f a = edge.a;
+            ci::Vec2f b = edge.b;
+            glVertex2f(a.x,a.y);
+            glVertex2f(b.x,b.y);
+        }
+    }
+    glEnd( );
+    gl::disableAlphaBlending();
+    glPopAttrib();
+}
+
+
 
 
 
@@ -307,213 +810,128 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
  }
  
  
-void MeshWarpRetargetter::setNumControlX(int xRes, int yRes)
-{
-    // there should be a minimum of 2 control points
-    //n = math<int>::max(2, n);
-    
-    // create a list of new points
-    std::vector<Vec2f> temp(xRes * yRes);
-    
-    // perform spline fitting
-    for(int row=0;row<yRes;++row) {
-        std::vector<Vec2f> points;
-        if(isLinearInterpolated) {
-            // construct piece-wise linear spline
-            for(int col=0;col<xRes;++col) {
-                points.push_back( getPoint(col,row,yRes) );
-            }
-            
-            BSpline2f s( points, 1, false, true );
-            
-            // calculate position of new control points
-            float length = s.getLength(0.0f, 1.0f);
-            float step = 1.0f / (xRes-1);
-            for(int col=0;col<xRes;++col) {
-                temp[(col * yRes) + row] = s.getPosition( s.getTime( length * col * step ) );
-            }
-        }
-        else {
-            // construct piece-wise catmull-rom spline
-            for(int col=0;col<xRes;++col) {
-                Vec2f p0 = getPoint(col-1, row,yRes);
-                Vec2f p1 = getPoint(col, row,yRes);
-                Vec2f p2 = getPoint(col+1, row,yRes);
-                Vec2f p3 = getPoint(col+2, row,yRes);
-                
-                // control points according to an optimized Catmull-Rom implementation
-                Vec2f b1 = p1 + (p2 - p0) / 6.0f;
-                Vec2f b2 = p2 - (p3 - p1) / 6.0f;
-                
-                points.push_back(p1);
-                
-                if(col < (xRes-1)) {
-                    points.push_back(b1);
-                    points.push_back(b2);
-                }
-            }
-            
-            BSpline2f s(points, 3, false, true );
-            
-            // calculate position of new control points
-            float length = s.getLength(0.0f, 1.0f);
-            float step = 1.0f / (n-1);
-            for(int col=0;col<n;++col) {
-                temp[(col * yRes) + row] = s.getPosition( s.getTime( length * col * step ) );
-            }
-        }
-    }
-    
-    // copy new control points
-    vertices = temp;
-}
-
-void MeshWarpRetargetter::setNumControlY(int xRes, int yRes)
-{
-    // there should be a minimum of 2 control points
-    //n = math<int>::max(2, n);
-    
-    // create a list of new points
-    std::vector<Vec2f> temp(xRes * yRes);
-    
-    // perform spline fitting
-    for(int col=0;col<xRes;++col) {
-        std::vector<Vec2f> points;
-        if(isLinearInterpolated) {
-            // construct piece-wise linear spline
-            for(int row=0;row<yRes;++row)
-                points.push_back( getPoint(col, row, yRes) );
-            
-            BSpline2f s( points, 1, false, true );
-            
-            // calculate position of new control points
-            float length = s.getLength(0.0f, 1.0f);
-            float step = 1.0f / (yRes-1);
-            for(int row=0;row<yRes;++row) {
-                temp[(col * n) + row] = s.getPosition( s.getTime( length * row * step ) );
-            }
-        }
-        else {
-            // construct piece-wise catmull-rom spline
-            for(int row=0;row<yRes;++row) {
-                Vec2f p0 = getPoint(col, row-1,yRes);
-                Vec2f p1 = getPoint(col, row,yRes);
-                Vec2f p2 = getPoint(col, row+1,yRes);
-                Vec2f p3 = getPoint(col, row+2,yRes);
-                
-                // control points according to an optimized Catmull-Rom implementation
-                Vec2f b1 = p1 + (p2 - p0) / 6.0f;
-                Vec2f b2 = p2 - (p3 - p1) / 6.0f;
-                
-                points.push_back(p1);
-                
-                if(row < (yRes-1)) {
-                    points.push_back(b1);
-                    points.push_back(b2);
-                }
-            }
-            
-            BSpline2f s( points, 3, false, true );
-            
-            // calculate position of new control points
-            float length = s.getLength(0.0f, 1.0f);
-            float step = 1.0f / (n-1);
-            for(int row=0;row<n;++row) {
-                temp[(col * n) + row] = s.getPosition( s.getTime( length * row * step ) );
-            }
-        }
-    }
-    
-    // copy new verices
-    vertices = temp;
-    
-}
-*/
-
-
-
-void MeshWarpRetargetter::drawMesh(ci::gl::Texture texture)
-{
-    if(!vboMesh) return;
-    texture.enableAndBind();
-    // save current texture mode, drawing color, line width and depth buffer state
-    glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT | GL_DEPTH_BUFFER_BIT);
-    
-    gl::disableDepthRead();
-    gl::disableDepthWrite();
-    
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    
-    gl::draw( vboMesh );
-    
-    if( isDrawingWireFrame ) {
-        glDisable( GL_TEXTURE_2D );
-        
-        // draw wireframe
-        gl::color( ColorA(1, 1, 1, 0.5f) );
-        gl::enableAlphaBlending();
-        gl::enableWireframe();
-        gl::draw( vboMesh );
-        gl::disableAlphaBlending();
-        gl::disableWireframe();
-        
-        if(isDrawingVertices) {
-            // draw control points
-            //for(unsigned i=0;i<vertices.size();i++)
-                //drawControlPoint( vertices[i] * mWindowSize, i == mSelected );
-        }
-    }
-    glPopAttrib();
-}
-
-void MeshWarpRetargetter::drawEdges(ci::gl::Texture texture)
-{
-    gl::draw(texture);
-    //for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin(); patchIter != currentPatchMap.end()
-    //glPushMatrix();
-    glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT | GL_DEPTH_BUFFER_BIT);
-    gl::disableDepthRead();
-    gl::disableDepthWrite();
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    glDisable( GL_TEXTURE_2D );
-    gl::enableAlphaBlending();
-    
-    
-    glBegin( GL_LINES );
-    
-    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin(); patchIter!= currentPatchMap.end(); patchIter++){
-        std::vector<int> patchEdgeIndices = patchIter->second.edges;
-        float patchSaliencyScore = patchIter->second.normalScore;
-        for(std::vector<int>::iterator edgeIndexIter = patchEdgeIndices.begin(); edgeIndexIter!=patchEdgeIndices.end();edgeIndexIter++)
-        {
-            gl::color( ColorA(1, 0, 0, patchSaliencyScore) );
-            MeshEdge edge = meshEdges[*edgeIndexIter];
-            ci::Vec2f a = edge.a;
-            ci::Vec2f b = edge.b;
-            glVertex2f(a.x,a.y);
-            glVertex2f(b.x,b.y);
-        }
-    }
-    glEnd( );
-    gl::disableAlphaBlending();
-    glPopAttrib();
-}
-
-void MeshWarpRetargetter::getRigidTransformationTerms(void)
-{
-    std::vector<float> rigidTransformationTerms;
-    
-    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin(); patchIter!= currentPatchMap.end(); patchIter++){
-        std::vector<int> patchEdgeIndices = patchIter->second.edges;
-        float patchSaliencyScore = patchIter->second.normalScore;
-        float patchRigidTransformationTerm;
-        
-        for(std::vector<int>::iterator edgeIndexIter = patchEdgeIndices.begin(); edgeIndexIter!=patchEdgeIndices.end();edgeIndexIter++)
-        {
-            //patchRigidTransformationTerm +=
-        }
-    }
-}
+ void MeshWarpRetargetter::setNumControlX(int xRes, int yRes)
+ {
+ // there should be a minimum of 2 control points
+ //n = math<int>::max(2, n);
+ 
+ // create a list of new points
+ std::vector<Vec2f> temp(xRes * yRes);
+ 
+ // perform spline fitting
+ for(int row=0;row<yRes;++row) {
+ std::vector<Vec2f> points;
+ if(isLinearInterpolated) {
+ // construct piece-wise linear spline
+ for(int col=0;col<xRes;++col) {
+ points.push_back( getPoint(col,row,yRes) );
+ }
+ 
+ BSpline2f s( points, 1, false, true );
+ 
+ // calculate position of new control points
+ float length = s.getLength(0.0f, 1.0f);
+ float step = 1.0f / (xRes-1);
+ for(int col=0;col<xRes;++col) {
+ temp[(col * yRes) + row] = s.getPosition( s.getTime( length * col * step ) );
+ }
+ }
+ else {
+ // construct piece-wise catmull-rom spline
+ for(int col=0;col<xRes;++col) {
+ Vec2f p0 = getPoint(col-1, row,yRes);
+ Vec2f p1 = getPoint(col, row,yRes);
+ Vec2f p2 = getPoint(col+1, row,yRes);
+ Vec2f p3 = getPoint(col+2, row,yRes);
+ 
+ // control points according to an optimized Catmull-Rom implementation
+ Vec2f b1 = p1 + (p2 - p0) / 6.0f;
+ Vec2f b2 = p2 - (p3 - p1) / 6.0f;
+ 
+ points.push_back(p1);
+ 
+ if(col < (xRes-1)) {
+ points.push_back(b1);
+ points.push_back(b2);
+ }
+ }
+ 
+ BSpline2f s(points, 3, false, true );
+ 
+ // calculate position of new control points
+ float length = s.getLength(0.0f, 1.0f);
+ float step = 1.0f / (n-1);
+ for(int col=0;col<n;++col) {
+ temp[(col * yRes) + row] = s.getPosition( s.getTime( length * col * step ) );
+ }
+ }
+ }
+ 
+ // copy new control points
+ vertices = temp;
+ }
+ 
+ void MeshWarpRetargetter::setNumControlY(int xRes, int yRes)
+ {
+ // there should be a minimum of 2 control points
+ //n = math<int>::max(2, n);
+ 
+ // create a list of new points
+ std::vector<Vec2f> temp(xRes * yRes);
+ 
+ // perform spline fitting
+ for(int col=0;col<xRes;++col) {
+ std::vector<Vec2f> points;
+ if(isLinearInterpolated) {
+ // construct piece-wise linear spline
+ for(int row=0;row<yRes;++row)
+ points.push_back( getPoint(col, row, yRes) );
+ 
+ BSpline2f s( points, 1, false, true );
+ 
+ // calculate position of new control points
+ float length = s.getLength(0.0f, 1.0f);
+ float step = 1.0f / (yRes-1);
+ for(int row=0;row<yRes;++row) {
+ temp[(col * n) + row] = s.getPosition( s.getTime( length * row * step ) );
+ }
+ }
+ else {
+ // construct piece-wise catmull-rom spline
+ for(int row=0;row<yRes;++row) {
+ Vec2f p0 = getPoint(col, row-1,yRes);
+ Vec2f p1 = getPoint(col, row,yRes);
+ Vec2f p2 = getPoint(col, row+1,yRes);
+ Vec2f p3 = getPoint(col, row+2,yRes);
+ 
+ // control points according to an optimized Catmull-Rom implementation
+ Vec2f b1 = p1 + (p2 - p0) / 6.0f;
+ Vec2f b2 = p2 - (p3 - p1) / 6.0f;
+ 
+ points.push_back(p1);
+ 
+ if(row < (yRes-1)) {
+ points.push_back(b1);
+ points.push_back(b2);
+ }
+ }
+ 
+ BSpline2f s( points, 3, false, true );
+ 
+ // calculate position of new control points
+ float length = s.getLength(0.0f, 1.0f);
+ float step = 1.0f / (n-1);
+ for(int row=0;row<n;++row) {
+ temp[(col * n) + row] = s.getPosition( s.getTime( length * row * step ) );
+ }
+ }
+ }
+ 
+ // copy new verices
+ vertices = temp;
+ 
+ }
+ */
 
 
 

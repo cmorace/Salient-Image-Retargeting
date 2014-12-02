@@ -26,12 +26,44 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../include/MeshWarpRetargetter.h"
-            timestampString = "438597278.340499"
+            timestampString = "439223924.097181"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "142"
-            endingLineNumber = "142"
+            startingLineNumber = "182"
+            endingLineNumber = "182"
             landmarkName = "MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight)"
+            landmarkType = "5">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../include/MeshWarpRetargetter.h"
+            timestampString = "439224163.268849"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "702"
+            endingLineNumber = "702"
+            landmarkName = "MeshWarpRetargetter::resizeMesh(int newWidth, int newHeight)"
+            landmarkType = "5">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../include/MeshWarpRetargetter.h"
+            timestampString = "439224163.268849"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "610"
+            endingLineNumber = "610"
+            landmarkName = "MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)"
             landmarkType = "5">
          </BreakpointContent>
       </BreakpointProxy>

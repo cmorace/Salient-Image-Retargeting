@@ -35,8 +35,10 @@ private:
         ShowImage,
         ShowSegmentedImage,
         ShowSaliencyMap,
+        ShowMesh,
         ShowMeshWarping,
         ShowPatchCenterEdge,
+        ShowImageRetargeting,
         Undefined
     };
     MeshWarpingState meshWarpingState = MeshWarpingState::ShowImage;
@@ -62,6 +64,8 @@ private:
     
     void getMeshButtonClick();
     void getPatchEdgeClick();
+    void setMeshOptimizationMatrixClick();
+    void getEnergyTermsClick();
     
     //SeamCarving
     void seamCarveResetButtonClick();
@@ -197,10 +201,10 @@ void ImageRetargetingApp::initGUI()
     //origParams->clear();
     //mParams.addParam( "Num Points", &mNumPoints, "", true );
 
-    origParams->addText("Image Width: " + to_string(originalImage.getWidth()));
-    origParams->addText("Image Height: " + to_string(originalImage.getHeight()));
-    origParams->addText("Has Alpha: " + to_string(originalImage.hasAlpha()));
-    origParams->addText("Row Bytes: " + to_string(originalImage.getRowBytes()));
+    //origParams->addText("Image Width: " + to_string(originalImage.getWidth()));
+    //origParams->addText("Image Height: " + to_string(originalImage.getHeight()));
+    //origParams->addText("Has Alpha: " + to_string(originalImage.hasAlpha()));
+    //origParams->addText("Row Bytes: " + to_string(originalImage.getRowBytes()));
     
     // Segmentation
     segParams->addText("Segmentation");
@@ -221,9 +225,11 @@ void ImageRetargetingApp::initGUI()
     segParams->addParam("Saliency Time: ", &saliencySegmentor->saliencyTime, "", true);
     segParams->addSeparator();
     segParams->addText("Quad Warping");
-    segParams->addParam( "Quad Size", &(meshWarpRetargetter->quadSize) ).min( 10 ).max( 100 ).step( 1 );
+    segParams->addParam( "Quad Size", &(meshWarpRetargetter->quadSize) ).min( 2 ).max( 400 ).step( 1 );
     segParams->addButton( "Get Mesh", std::bind( &ImageRetargetingApp::getMeshButtonClick, this ) );
     segParams->addButton( "Get Patch Edges", std::bind( &ImageRetargetingApp::getPatchEdgeClick, this ) );
+    segParams->addButton( "Set Optimization Matrix", std::bind( &ImageRetargetingApp::setMeshOptimizationMatrixClick, this ) );
+    segParams->addButton( "Get EnergyTerms", std::bind( &ImageRetargetingApp::getEnergyTermsClick, this ) );
     segParams->addSeparator();
     
     gradParams->addButton( "Original Image", std::bind( &ImageRetargetingApp::seamCarveResetButtonClick, this ) );
@@ -325,16 +331,24 @@ void ImageRetargetingApp::drawSegmentedImageWindow()
                 gl::draw(saliencyTexture);
             }
             break;
-            
-        case MeshWarpingState::ShowMeshWarping :
-            if( saliencyTexture ) {
-                meshWarpRetargetter->drawMesh(saliencyTexture);
+          
+        case MeshWarpingState::ShowMesh :
+            if( originalTexture ) {
+                meshWarpRetargetter->drawMesh(originalTexture);
             }
+            
             break;
             
         case MeshWarpingState::ShowPatchCenterEdge :
             if( saliencyTexture ) {
                 meshWarpRetargetter->drawEdges(saliencyTexture);
+            }
+            break;
+          
+        case MeshWarpingState::ShowMeshWarping :
+            if( originalTexture ) {
+                meshWarpRetargetter->resizeMesh(640, 480);
+                meshWarpRetargetter->drawMesh(originalTexture);
             }
             break;
             
@@ -494,7 +508,7 @@ void ImageRetargetingApp::segmentSaliencyButtonClick()
 void ImageRetargetingApp::getMeshButtonClick()
 {
     meshWarpRetargetter->initMesh(saliencyImage.getWidth(),saliencyImage.getHeight());
-    meshWarpingState = MeshWarpingState::ShowMeshWarping;
+    meshWarpingState = MeshWarpingState::ShowMesh;
     updateApplication();
 }
 
@@ -502,6 +516,20 @@ void ImageRetargetingApp::getPatchEdgeClick()
 {
     meshWarpRetargetter->initMesh(saliencyImage.getWidth(),saliencyImage.getHeight(), saliencySegmentor);
     meshWarpingState = MeshWarpingState::ShowPatchCenterEdge;
+    updateApplication();
+}
+
+void ImageRetargetingApp::setMeshOptimizationMatrixClick()
+{
+    printf("\nsetting mesh optimization matrix");
+    meshWarpRetargetter->computeOptimizationMatrix(640, 480);
+    updateApplication();
+}
+
+void ImageRetargetingApp::getEnergyTermsClick()
+{
+    meshWarpRetargetter->resizeMesh(640, 480);
+    meshWarpingState = MeshWarpingState::ShowMeshWarping;
     updateApplication();
 }
 

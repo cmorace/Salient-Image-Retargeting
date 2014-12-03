@@ -26,11 +26,11 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../include/MeshWarpRetargetter.h"
-            timestampString = "439223924.097181"
+            timestampString = "439309259.932388"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "182"
-            endingLineNumber = "182"
+            startingLineNumber = "184"
+            endingLineNumber = "184"
             landmarkName = "MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight)"
             landmarkType = "5">
          </BreakpointContent>
@@ -42,28 +42,12 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../include/MeshWarpRetargetter.h"
-            timestampString = "439305284.268004"
+            timestampString = "439329315.093697"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1177"
-            endingLineNumber = "1177"
+            startingLineNumber = "1765"
+            endingLineNumber = "1765"
             landmarkName = "MeshWarpRetargetter::resizeMesh(int newWidth, int newHeight)"
-            landmarkType = "5">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../include/MeshWarpRetargetter.h"
-            timestampString = "439305284.268004"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1122"
-            endingLineNumber = "1122"
-            landmarkName = "MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)"
             landmarkType = "5">
          </BreakpointContent>
       </BreakpointProxy>

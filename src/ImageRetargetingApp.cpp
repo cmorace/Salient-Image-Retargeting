@@ -347,7 +347,7 @@ void ImageRetargetingApp::drawSegmentedImageWindow()
           
         case MeshWarpingState::ShowMeshWarping :
             if( originalTexture ) {
-                meshWarpRetargetter->resizeMesh(640, 480);
+                meshWarpRetargetter->resizeMesh(800, 400);
                 meshWarpRetargetter->drawMesh(originalTexture);
             }
             break;
@@ -522,7 +522,7 @@ void ImageRetargetingApp::getPatchEdgeClick()
 void ImageRetargetingApp::setMeshOptimizationMatrixClick()
 {
     printf("\nsetting mesh optimization matrix");
-    meshWarpRetargetter->computeOptimizationMatrix(400, 300);
+    meshWarpRetargetter->computeOptimizationMatrix(800 , 400);
     updateApplication();
 }
 

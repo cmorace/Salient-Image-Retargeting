@@ -231,6 +231,7 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
     rightBoundaryIndices.clear();
     
     //top and bottom boundary indices in optimization answerVectorB
+    //choose y coordinate in our optimized vector
     for( int x = 0; x < numXVertices; ++x ) {
         topBoundaryIndices.push_back(x * numYVertices + numVertices);
         bottomBoundaryIndices.push_back((x+1) * numYVertices -1 + numVertices);
@@ -238,7 +239,7 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
     //left and right boundary indices in optimization answerVectorB
     for( int y = 0; y < numYVertices; ++y ) {
         leftBoundaryIndices.push_back(y);
-        rightBoundaryIndices.push_back(numVertices - 1 - numYVertices + y);
+        rightBoundaryIndices.push_back(numVertices - numYVertices + y);
     }
 }
 
@@ -272,16 +273,19 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
         MeshEdge c;
         std::vector<MeshEdge> patchEdges;
         std::vector<Eigen::Matrix2d> transformations;
+        std::vector<Eigen::Matrix2d> linearTransformations;
         if(p.edges.size() > 0)
         {
             c = meshEdges[p.edges[0]];
             for (std::vector<int>::iterator edgeIndexIter = p.edges.begin(); edgeIndexIter != p.edges.end(); edgeIndexIter++) {
                 MeshEdge patchEdge = meshEdges[*edgeIndexIter];
                 patchEdges.push_back(patchEdge);
-                transformations.push_back(computeTransformation(c,patchEdge));
+                Eigen::Matrix2d L = computeTransformation(c,patchEdge);
+                transformations.push_back(L);
+               linearTransformations.push_back(L); //just reserve space, will replace linearTransformation when resizing
             }
         }
-        MeshPatch meshPatch = {p,c,patchEdges,transformations};
+        MeshPatch meshPatch = {p,c,patchEdges,transformations,linearTransformations};
         meshPatches.push_back(meshPatch);
     }
 }
@@ -307,8 +311,8 @@ Eigen::Matrix2d MeshWarpRetargetter::computeLinearTransformation(Eigen::Matrix2d
 {
     Eigen::Matrix2d L;
     
-    L << (1.0 * newWidth) / oldWidth , 0,
-          0 , (1.0 * newHeight) / oldHeight;
+    L << (1.0 * newHeight) / oldHeight , 0,
+          0 , (1.0 * newWidth) / oldWidth;
     //std::cout << "L*T = " << std::endl << L*T << std::endl;
     return L*T;
 }
@@ -319,19 +323,31 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
     //compute the edge transformations for every patch
     std::vector<Eigen::Triplet<double>> matrixA_Entries;
     
+    /*
     for (std::vector<MeshPatch>::iterator iter = meshPatches.begin(); iter != meshPatches.end(); iter++) {
         MeshPatch p = *iter;
+        
         if(p.transformation.size() > 0)
         {
-            std::vector<Eigen::Matrix2d> linearT;
-            for (std::vector<Eigen::Matrix2d>::iterator iter = p.transformation.begin(); iter != p.transformation.end(); iter++) {
-                linearT.push_back(computeLinearTransformation(*iter,newWidth,newHeight,nOriginal,mOriginal));
+            p.linearTransformation.clear();
+            printf("\np size before = %lu", p.linearTransformation.size());
+            int matCounter = 0;
+            for (std::vector<Eigen::Matrix2d>::iterator matIter = p.transformation.begin(); matIter != p.transformation.end(); matIter++,matCounter++) {
+                Eigen::Matrix2d T = *matIter;
+                Eigen::Matrix2d LT = computeLinearTransformation(T,newWidth,newHeight,nOriginal,mOriginal);
+                double s = LT(0,0);
+                double r = LT(0,1);
+                //printf("\n(s,r) = (%f,%f)",s,r);
+                //p.linearTransformation.push_back(LT);
             }
+            //printf("\nlinearTransformations.size() = %lu",p.linearTransformation.size());
         }
     }
+     */
+    
     
     /////TEST
-    printf("\ntest");
+    
     Eigen::VectorXd x2(2*numVertices);
     
     int vertexCounter = 0;
@@ -343,31 +359,92 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
         }
     }
     
+    printf("\n compute transformation terms");
+    //compute transformation terms
+    
     for (std::vector<MeshPatch>::iterator iter = meshPatches.begin(); iter != meshPatches.end(); iter++) {
         MeshPatch p = *iter;
         
         if(p.patchEdges.size() > 0)
         {
-            printf("\n edges = %lu",p.patchEdges.size());
             MeshEdge c = p.c;
             int edgeCounter = 0;
-            for (std::vector<Eigen::Matrix2d>::iterator iter = p.linearTransformation.begin(); iter != p.linearTransformation.end(); iter++,edgeCounter++) {
+            for (std::vector<Eigen::Matrix2d>::iterator iter = p.transformation.begin(); iter != p.transformation.end(); iter++,edgeCounter++) {
+                
                 Eigen::Matrix2d T = *iter;
+                Eigen::Matrix2d LT = computeLinearTransformation(T,newWidth,newHeight,nOriginal,mOriginal);
+                
+                // transformation equations
+                // (we could compute this first transformation during preprocessing)
+                // how to to account for identical vertices among edges
+                /*
                 double s = T(0,0);
                 double r = T(0,1);
+                MeshEdge edgeI = p.patchEdges[edgeCounter];
+                double cx = x2(c.aX_Index) - x2(c.bX_Index);
+                double cy = x2(c.aY_Index) - x2(c.bY_Index);
+                
+                x2(edgeI.aX_Index) = x2(edgeI.bX_Index) + s*cx + r*cy;
+                x2(edgeI.aY_Index) = x2(edgeI.bY_Index) - r*cx + s*cy;
+                
+                x2(edgeI.bX_Index) = x2(edgeI.aX_Index) - s*cx - r*cy;
+                x2(edgeI.bY_Index) = x2(edgeI.aY_Index) + r*cx - s*cy;
+                */
+                
+                // linear transformation equations
+                
+                double lt00 = T(0,0);
+                double lt01 = T(0,1);
+                double lt10 = T(1,0);
+                double lt11 = T(1,1);
+                
+                double xScale = 1.0*newWidth/nOriginal;
+                double yScale = 1.0*newHeight/mOriginal;
                 
                 MeshEdge edgeI = p.patchEdges[edgeCounter];
                 double cx = vertexVectorX(c.aX_Index) - vertexVectorX(c.bX_Index);
                 double cy = vertexVectorX(c.aY_Index) - vertexVectorX(c.bY_Index);
                 
-                x2(edgeI.aX_Index) = vertexVectorX(edgeI.bX_Index) + s*cx + r*cy;
-                x2(edgeI.aY_Index) = vertexVectorX(edgeI.bY_Index) - r*cx + s*cy;
+                //test linear scaling
+                x2(edgeI.aX_Index) = xScale*(vertexVectorX(edgeI.bX_Index) + lt00*cx + lt01*cy);
+                x2(edgeI.aY_Index) = yScale*(vertexVectorX(edgeI.bY_Index) + lt10*cx + lt11*cy);
                 
-                x2(edgeI.bX_Index) = vertexVectorX(edgeI.aX_Index) - s*cx - r*cy;
-                x2(edgeI.bY_Index) = vertexVectorX(edgeI.aY_Index) + r*cx - s*cy;
+                x2(edgeI.bX_Index) = xScale*(vertexVectorX(edgeI.aX_Index) - lt00*cx - lt01*cy);
+                x2(edgeI.bY_Index) = yScale*(vertexVectorX(edgeI.aY_Index) - lt10*cx - lt11*cy);
+                
             }
         }
     }
+    
+    /*
+    printf("\n compute grid orientation terms");
+    for(std::vector<MeshQuad>::iterator quadIter = meshQuads.begin(); quadIter != meshQuads.end(); quadIter++)
+    {
+        MeshQuad quad = *quadIter;
+        
+        x2(quad.tlX_Index) = x2(quad.blX_Index);
+        x2(quad.trX_Index) = x2(quad.brX_Index);
+        x2(quad.tlY_Index) = x2(quad.trY_Index);
+        x2(quad.brY_Index) = x2(quad.blY_Index);
+        
+    }
+    
+    
+    printf("\n compute boundary condition terms");
+    std::vector<int>::iterator botIter = bottomBoundaryIndices.begin();
+    for (std::vector<int>::iterator topIter = topBoundaryIndices.begin(); topIter!=topBoundaryIndices.end(); topIter++,botIter++)
+    {
+        x2(*topIter) = 0;
+        x2(*botIter) = newHeight;
+    }
+    
+    std::vector<int>::iterator leftIter = leftBoundaryIndices.begin();
+    for (std::vector<int>::iterator rightIter = rightBoundaryIndices.begin(); rightIter!=rightBoundaryIndices.end(); rightIter++,leftIter++)
+    {
+        x2(*leftIter) = 0;
+        x2(*rightIter) = newWidth;
+    }
+    */
     
     gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
     vertexCounter = 0;
@@ -646,43 +723,6 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
     
 }
 
-/*
-Eigen::SparseMatrix<double> MeshWarpRetargetter::computeTransformationMatrix(std::vector<MeshWarpRetargetter::PatchTransformation> T)
-{
-    //Eigen::SparseMatrix<double> Ad
-    int patchCounter = 0;
-    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin();
-        patchIter!= currentPatchMap.end();
-        patchIter++, patchCounter++)
-    {
-        SaliencySegmentor::Patch patch = patchIter->second;
-        std::vector<int> patchEdgeIndices = patch.edges;
-        std::vector<Eigen::Matrix2d> transformation = T[patchCounter].transformation;
-    }
-}
-
-Eigen::SparseMatrix<double> MeshWarpRetargetter::computeLinearTransformationMatrix(std::vector<MeshWarpRetargetter::PatchTransformation> LT)
-{
-    int patchCounter = 0;
-    for(SaliencySegmentor::PatchMapIterator patchIter = currentPatchMap.begin(); patchIter!= currentPatchMap.end(); patchIter++, patchCounter++)
-    {
-        SaliencySegmentor::Patch patch = patchIter->second;
-        std::vector<int> patchEdgeIndices = patch.edges;
-        if(patchEdgeIndices.size() > 0)
-        {
-            std::vector<Eigen::Matrix2d> linearTransformation = LT[patchCounter].linearTransformation;
-            if(linearTransformation.size() == patchEdgeIndices.size())
-            {
-                printf("\nok");
-            }
-            else
-            {
-               printf("\nwe have a problem");
-            }
-        }
-    }
-}
- */
 
 void MeshWarpRetargetter::resizeMesh(int newWidth, int newHeight)
 {

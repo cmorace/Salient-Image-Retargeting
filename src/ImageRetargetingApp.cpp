@@ -522,13 +522,13 @@ void ImageRetargetingApp::getPatchEdgeClick()
 void ImageRetargetingApp::setMeshOptimizationMatrixClick()
 {
     printf("\nsetting mesh optimization matrix");
-    meshWarpRetargetter->computeOptimizationMatrix(640, 480);
+    meshWarpRetargetter->computeOptimizationMatrix(400, 300);
     updateApplication();
 }
 
 void ImageRetargetingApp::getEnergyTermsClick()
 {
-    meshWarpRetargetter->resizeMesh(640, 480);
+    meshWarpRetargetter->resizeMesh(400, 300);
     meshWarpingState = MeshWarpingState::ShowMeshWarping;
     updateApplication();
 }

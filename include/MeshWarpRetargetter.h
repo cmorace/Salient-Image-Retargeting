@@ -324,7 +324,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
 {
     Eigen::VectorXd x2(2*numVertices);
     
-    int rows = 4*numEdges +4*numEdges + 2*(numXVertices-2)*(numYVertices-2)+4*(numXVertices+numYVertices-3) + 2*(numXVertices+numYVertices);
+    int rows = 2*numEdges +2*numEdges + 2*(numXVertices-2)*(numYVertices-2)+4*(numXVertices+numYVertices-3) + 2*(numXVertices+numYVertices);
     printf("calculated rows = %d",rows);
     Eigen::SparseMatrix<double> A(rows,2*numVertices);
     A.setZero();
@@ -388,7 +388,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                         A.insert(rowIndex, c.aY_Index) = s-w;
                         A.insert(rowIndex, c.bY_Index) = w-s;
                         rowIndex++;
-                        
+                        /*
                         //x2(c.bX_Index) = (1-s)*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
                         A.insert(rowIndex, c.aX_Index) = w-s;
                         A.insert(rowIndex, c.bX_Index) = s-w;
@@ -402,6 +402,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                         A.insert(rowIndex, c.aY_Index) = w-s;
                         A.insert(rowIndex, c.bY_Index) = s-w;
                         rowIndex++;
+                         */
                     }
                     else                                     // c.a = e.a
                     {
@@ -421,6 +422,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                         A.insert(rowIndex, c.bY_Index) = -s;
                         rowIndex++;
                         
+                        /*
                         //x2(edgeI.bX_Index) = (1-s)*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
                         A.insert(rowIndex, edgeI.bX_Index) = -w;
                         A.insert(rowIndex, c.aX_Index) = w-s;
@@ -436,6 +438,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                         A.insert(rowIndex, c.aY_Index) = w-s;
                         A.insert(rowIndex, c.bY_Index) = s;
                         rowIndex++;
+                         */
                     }
                 }
                 else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index)
@@ -458,6 +461,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                     A.insert(rowIndex, c.bY_Index) = -w-s;
                     rowIndex++;
                     
+                    /*
                     //x2(edgeI.bX_Index) = (1+s)*x2(c.bX_Index) - s*x2(c.aX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
                     A.insert(rowIndex, edgeI.bX_Index) = -w;
                     A.insert(rowIndex, c.aX_Index) = -s;
@@ -473,6 +477,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                     A.insert(rowIndex, c.aY_Index) = -s;
                     A.insert(rowIndex, c.bY_Index) = w+s;
                     rowIndex++;
+                     */
                     
                 }
                 else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index)
@@ -495,6 +500,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                     A.insert(rowIndex, c.bY_Index) = -s;
                     rowIndex++;
                     
+                    /*
                     //x2(c.aX_Index) = x2(edgeI.aX_Index) - s*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
                     A.insert(rowIndex, edgeI.aX_Index) = w;
                     A.insert(rowIndex, c.aX_Index) = -w-s;
@@ -510,6 +516,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                     A.insert(rowIndex, c.aY_Index) = -w-s;
                     A.insert(rowIndex, c.bY_Index) = s;
                     rowIndex++;
+                     */
                 }
                 else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index)
                                                             //  c.b = e.b
@@ -531,6 +538,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                     A.insert(rowIndex, c.bY_Index) = w-s;
                     rowIndex++;
                     
+                    /*
                     //x2(c.bX_Index) = x2(edgeI.aX_Index) - s*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
                     A.insert(rowIndex, edgeI.aX_Index) = w;
                     A.insert(rowIndex, c.aX_Index) = -s;
@@ -546,6 +554,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                     A.insert(rowIndex, c.aY_Index) = -s;
                     A.insert(rowIndex, c.bY_Index) = s-w;
                     rowIndex++;
+                     */
                 }
                 else{                                       // edges not connected
                     //printf("\n edges not connected");
@@ -567,6 +576,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                     A.insert(rowIndex, c.bY_Index) = -s;
                     rowIndex++;
                     
+                    /*
                     //x2(edgeI.bX_Index) = x2(edgeI.aX_Index) - s*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
                     A.insert(rowIndex, edgeI.bX_Index) = -w;
                     A.insert(rowIndex, edgeI.aX_Index) = w;
@@ -584,6 +594,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                     A.insert(rowIndex, c.aY_Index) = -s;
                     A.insert(rowIndex, c.bY_Index) = s;
                     rowIndex++;
+                     */
                 }
             }
         }
@@ -651,6 +662,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                          - lt01*vertexVectorX(c.aY_Index)
                          + lt01*vertexVectorX(c.bY_Index);
                          */
+                        /*
                         A.insert(rowIndex, c.aX_Index) = w-lt00;
                         A.insert(rowIndex, c.bX_Index) = lt00-w;
                         A.insert(rowIndex, c.aY_Index) = -lt01;
@@ -664,11 +676,13 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                          + (1-lt11)*vertexVectorX(c.aY_Index)
                          + lt11*vertexVectorX(c.bY_Index);
                          */
+                        /*
                         A.insert(rowIndex, c.aX_Index) = -lt10;
                         A.insert(rowIndex, c.bX_Index) = lt10;
                         A.insert(rowIndex, c.aY_Index) = w-lt11;
                         A.insert(rowIndex, c.bY_Index) = lt11-w;
                         rowIndex++;
+                         */
                         
                     }
                     else //c.a = e.a
@@ -710,6 +724,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                          - lt01*vertexVectorX(c.aY_Index)
                          + lt01*vertexVectorX(c.bY_Index);
                          */
+                        /*
                         A.insert(rowIndex, edgeI.bX_Index) = -w;
                         A.insert(rowIndex, c.aX_Index) = w-lt00;
                         A.insert(rowIndex, c.bX_Index) = lt00;
@@ -724,12 +739,14 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                          + (1-lt11)*vertexVectorX(c.aY_Index)
                          + lt11*vertexVectorX(c.bY_Index);
                          */
+                        /*
                         A.insert(rowIndex, edgeI.bY_Index) = -w;
                         A.insert(rowIndex, c.aX_Index) = -lt10;
                         A.insert(rowIndex, c.bX_Index) = lt10;
                         A.insert(rowIndex, c.aY_Index) = w-lt11;
                         A.insert(rowIndex, c.bY_Index) = lt11;
                         rowIndex++;
+                         */
                     }
                 }
                 else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index) //  c.b = e.a
@@ -770,6 +787,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                      - lt01*vertexVectorX(c.aY_Index)
                      + lt01*vertexVectorX(c.bY_Index);
                      */
+                    /*
                     A.insert(rowIndex, edgeI.bX_Index) = -w;
                     A.insert(rowIndex, c.aX_Index) = -lt00;
                     A.insert(rowIndex, c.bX_Index) = w+lt00;
@@ -784,13 +802,14 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                      - lt11*vertexVectorX(c.aY_Index)
                      + (1+lt11)*vertexVectorX(c.bY_Index);
                      */
+                    /*
                     A.insert(rowIndex, edgeI.bY_Index) = -w;
                     A.insert(rowIndex, c.aX_Index) = -lt10;
                     A.insert(rowIndex, c.bX_Index) = lt10;
                     A.insert(rowIndex, c.aY_Index) = -lt11;
                     A.insert(rowIndex, c.bY_Index) = w+lt11;
                     rowIndex++;
-                    
+                    */
                 }
                 else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index) //  c.a = e.b
                 {
@@ -832,6 +851,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                      - lt01*vertexVectorX(c.aY_Index)
                      + lt01*vertexVectorX(c.bY_Index);
                      */
+                    /*
                     A.insert(rowIndex, edgeI.aX_Index) = w;
                     A.insert(rowIndex, c.aX_Index) = -lt00 - w;
                     A.insert(rowIndex, c.bX_Index) = lt00;
@@ -846,12 +866,14 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                      - lt11*vertexVectorX(c.aY_Index)
                      + lt11*vertexVectorX(c.bY_Index);
                      */
+                    /*
                     A.insert(rowIndex, edgeI.aY_Index) = w;
                     A.insert(rowIndex, c.aX_Index) = -lt10;
                     A.insert(rowIndex, c.bX_Index) = lt10;
                     A.insert(rowIndex, c.aY_Index) = -lt11 - w;
                     A.insert(rowIndex, c.bY_Index) = lt11;
                     rowIndex++;
+                     */
                     
                 }
                 else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index) //  c.b = e.b
@@ -893,6 +915,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                      - lt01*vertexVectorX(c.aY_Index)
                      + lt01*vertexVectorX(c.bY_Index);
                      */
+                    /*
                     A.insert(rowIndex, edgeI.aX_Index) = w;
                     A.insert(rowIndex, c.aX_Index) = -lt00;
                     A.insert(rowIndex, c.bX_Index) = lt00-w;
@@ -907,12 +930,14 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                      - lt11*vertexVectorX(c.aY_Index)
                      + lt11*vertexVectorX(c.bY_Index);
                      */
+                    /*
                     A.insert(rowIndex, edgeI.aY_Index) = w;
                     A.insert(rowIndex, c.aX_Index) = -lt10;
                     A.insert(rowIndex, c.bX_Index) = lt10;
                     A.insert(rowIndex, c.aY_Index) = -lt11;
                     A.insert(rowIndex, c.bY_Index) = lt11-w;
                     rowIndex++;
+                     */
                 }
                 else{ // edges not connected
                     //printf("\n edges not connected");
@@ -951,6 +976,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                      - lt01*vertexVectorX(c.aY_Index)
                      + lt01*vertexVectorX(c.bY_Index);
                      */
+                    /*
                     A.insert(rowIndex, edgeI.aX_Index) = w;
                     A.insert(rowIndex, edgeI.bX_Index) = -w;
                     A.insert(rowIndex, c.aX_Index) = -lt00;
@@ -965,6 +991,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                      - lt11*vertexVectorX(c.aY_Index)
                      + lt11*vertexVectorX(c.bY_Index);
                      */
+                    /*
                     A.insert(rowIndex, edgeI.aY_Index) = w;
                     A.insert(rowIndex, edgeI.bY_Index) = -w;
                     A.insert(rowIndex, c.aX_Index) = -lt10;
@@ -972,6 +999,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                     A.insert(rowIndex, c.aY_Index) = -lt11;
                     A.insert(rowIndex, c.bY_Index) = lt11;
                     rowIndex++;
+                     */
                 }
                 
                 

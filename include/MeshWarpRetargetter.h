@@ -381,36 +381,471 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                 double s = T(0,0);
                 double r = T(0,1);
                 MeshEdge edgeI = p.patchEdges[edgeCounter];
-                double cx = x2(c.aX_Index) - x2(c.bX_Index);
-                double cy = x2(c.aY_Index) - x2(c.bY_Index);
                 
-                x2(edgeI.aX_Index) = x2(edgeI.bX_Index) + s*cx + r*cy;
-                x2(edgeI.aY_Index) = x2(edgeI.bY_Index) - r*cx + s*cy;
                 
-                x2(edgeI.bX_Index) = x2(edgeI.aX_Index) - s*cx - r*cy;
-                x2(edgeI.bY_Index) = x2(edgeI.aY_Index) + r*cx - s*cy;
+                if(c.aX_Index == edgeI.aX_Index && c.aY_Index == edgeI.aY_Index) //2 cases (c=e or ca=ea (top))
+                {
+                    if (c.bX_Index == edgeI.bX_Index
+                        && c.bY_Index == edgeI.bY_Index) //c = e
+                    {
+                        printf("\n c = e (same edge)");
+                        x2(c.aX_Index) = (1-s)*x2(c.bX_Index) + s*x2(c.aX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+                        x2(c.aY_Index) = (1-s)*x2(c.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index);
+                        
+                        x2(c.bX_Index) = (1-s)*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
+                        x2(c.bY_Index) = (1-s)*x2(c.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) + s*x2(c.bY_Index);
+                    }
+                    else //c.a = e.a
+                    {
+                        printf("\n c.a = e.a (top right)");
+                        x2(c.aX_Index) = x2(edgeI.bX_Index) + s*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+                        x2(c.aY_Index) = x2(edgeI.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index) - s*x2(c.bY_Index);
+                        
+                        x2(edgeI.bX_Index) = (1-s)*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
+                        x2(edgeI.bY_Index) = (1-s)*x2(c.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) + s*x2(c.bY_Index);
+                    }
+                }
+                else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index) //  c.b = e.a
+                {
+                    printf("\n c.b = e.a (bottom right)");
+                    x2(c.bX_Index) = x2(edgeI.bX_Index) + s*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+                    x2(c.bY_Index) = x2(edgeI.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index) - s*x2(c.bY_Index);
+                    
+                    x2(edgeI.bX_Index) = (1+s)*x2(c.bX_Index) - s*x2(c.aX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
+                    x2(edgeI.bY_Index) = (1+s)*x2(c.bY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) - s*x2(c.aY_Index);
+                    
+                }
+                else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index) //  c.a = e.b
+                {
+                    printf("\n c.a = e.b (top left)");
+                    x2(edgeI.aX_Index) = (1+s)*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+                    x2(edgeI.aY_Index) = (1+s)*x2(c.aY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) - s*x2(c.bY_Index);
+                    
+                    x2(c.aX_Index) = x2(edgeI.aX_Index) - s*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
+                    x2(c.aY_Index) = x2(edgeI.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) - s*x2(c.aY_Index) + s*x2(c.bY_Index);
+                }
+                else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index) //  c.b = e.b
+                {
+                    printf("\n c.b = e.b (bottom left)");
+                    x2(edgeI.aX_Index) = (1-s)*x2(c.bX_Index) + s*x2(c.aX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+                    x2(edgeI.aY_Index) = (1-s)*x2(c.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index);
+                    
+                    x2(c.bX_Index) = x2(edgeI.aX_Index) - s*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
+                    x2(c.bY_Index) = x2(edgeI.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) - s*x2(c.aY_Index) + s*x2(c.bY_Index);
+                }
+                else{ // edges not connected
+                    //printf("\n edges not connected");
+                    x2(edgeI.aX_Index) = x2(edgeI.bX_Index) + s*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+                    x2(edgeI.aY_Index) = x2(edgeI.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index) - s*x2(c.bY_Index);
+                    
+                    x2(edgeI.bX_Index) = x2(edgeI.aX_Index) - s*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
+                    x2(edgeI.bY_Index) = x2(edgeI.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) - s*x2(c.aY_Index) + s*x2(c.bY_Index);
+                }
                 */
                 
+                
+                /*
                 // linear transformation equations
+                // Papers equations
+                double lt00 = LT(0,0);
+                double lt01 = LT(0,1);
+                double lt10 = LT(1,0);
+                double lt11 = LT(1,1);
+                
+                MeshEdge edgeI = p.patchEdges[edgeCounter];
+                
+                x2(edgeI.aX_Index) = vertexVectorX(edgeI.bX_Index)
+                                   + lt00*vertexVectorX(c.aX_Index)
+                                   - lt00*vertexVectorX(c.bX_Index)
+                                   + lt01*vertexVectorX(c.aY_Index)
+                                   - lt01*vertexVectorX(c.bY_Index);
+                
+                x2(edgeI.aY_Index) = vertexVectorX(edgeI.bY_Index)
+                                   + lt10*vertexVectorX(c.aX_Index)
+                                   - lt10*vertexVectorX(c.bX_Index)
+                                   + lt11*vertexVectorX(c.aY_Index)
+                                   - lt11*vertexVectorX(c.bY_Index);
+                
+                x2(edgeI.bX_Index) = vertexVectorX(edgeI.aX_Index)
+                                   - lt00*vertexVectorX(c.aX_Index)
+                                   + lt00*vertexVectorX(c.bX_Index)
+                                   - lt01*vertexVectorX(c.aY_Index)
+                                   + lt01*vertexVectorX(c.bY_Index);
+                
+                x2(edgeI.bY_Index) = vertexVectorX(edgeI.aY_Index)
+                                   - lt10*vertexVectorX(c.aX_Index)
+                                   + lt10*vertexVectorX(c.bX_Index)
+                                   - lt11*vertexVectorX(c.aY_Index)
+                                   + lt11*vertexVectorX(c.bY_Index);
+                
+                */
+                
+                /*
+                // Papers equations
+                double lt00 = LT(0,0);
+                double lt01 = LT(0,1);
+                double lt10 = LT(1,0);
+                double lt11 = LT(1,1);
+                
+                MeshEdge edgeI = p.patchEdges[edgeCounter];
+                
+                if(c.aX_Index == edgeI.aX_Index && c.aY_Index == edgeI.aY_Index) //2 cases (c=e or ca=ea (top))
+                {
+                    if (c.bX_Index == edgeI.bX_Index
+                        && c.bY_Index == edgeI.bY_Index) //c = e
+                    {
+                        printf("\n c = e (same edge)");
+                        
+                        x2(c.aX_Index) = (1-lt00)*vertexVectorX(c.bX_Index)
+                        + lt00*vertexVectorX(c.aX_Index)
+                        + lt01*vertexVectorX(c.aY_Index)
+                        - lt01*vertexVectorX(c.bY_Index);
+                        
+                        x2(c.aY_Index) = (1-lt11)*vertexVectorX(c.bY_Index)
+                        + lt10*vertexVectorX(c.aX_Index)
+                        - lt10*vertexVectorX(c.bX_Index)
+                        + lt11*vertexVectorX(c.aY_Index);
+                        
+                        x2(c.bX_Index) = (1-lt00)*vertexVectorX(c.aX_Index)
+                        + lt00*vertexVectorX(c.bX_Index)
+                        - lt01*vertexVectorX(c.aY_Index)
+                        + lt01*vertexVectorX(c.bY_Index);
+                        
+                        x2(c.bY_Index) = (1-lt11)*vertexVectorX(c.aY_Index)
+                        - lt10*vertexVectorX(c.aX_Index)
+                        + lt10*vertexVectorX(c.bX_Index)
+                        + lt11*vertexVectorX(c.bY_Index);
+                    }
+                    else //c.a = e.a
+                    {
+                        printf("\n c.a = e.a (top right)");
+                        x2(c.aX_Index) = vertexVectorX(edgeI.bX_Index)
+                        + lt00*vertexVectorX(c.aX_Index)
+                        - lt00*vertexVectorX(c.bX_Index)
+                        + lt01*vertexVectorX(c.aY_Index)
+                        - lt01*vertexVectorX(c.bY_Index);
+                        
+                        x2(c.aY_Index) = vertexVectorX(edgeI.bY_Index)
+                        + lt10*vertexVectorX(c.aX_Index)
+                        - lt10*vertexVectorX(c.bX_Index)
+                        + lt11*vertexVectorX(c.aY_Index)
+                        - lt11*vertexVectorX(c.bY_Index);
+                        
+                        x2(edgeI.bX_Index) = (1-lt00)*vertexVectorX(c.aX_Index)
+                        + lt00*vertexVectorX(c.bX_Index)
+                        - lt01*vertexVectorX(c.aY_Index)
+                        + lt01*vertexVectorX(c.bY_Index);
+                        
+                        x2(edgeI.bY_Index) = (1-lt11)*vertexVectorX(c.aY_Index)
+                        - lt10*vertexVectorX(c.aX_Index)
+                        + lt10*vertexVectorX(c.bX_Index)
+                        + lt11*vertexVectorX(c.bY_Index);
+                    }
+                }
+                else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index) //  c.b = e.a
+                {
+                    printf("\n c.b = e.a (bottom right)");
+                    x2(c.bX_Index) = vertexVectorX(edgeI.bX_Index)
+                    + lt00*vertexVectorX(c.aX_Index)
+                    - lt00*vertexVectorX(c.bX_Index)
+                    + lt01*vertexVectorX(c.aY_Index)
+                    - lt01*vertexVectorX(c.bY_Index);
+                    
+                    x2(c.bY_Index) = vertexVectorX(edgeI.bY_Index)
+                    + lt10*vertexVectorX(c.aX_Index)
+                    - lt10*vertexVectorX(c.bX_Index)
+                    + lt11*vertexVectorX(c.aY_Index)
+                    - lt11*vertexVectorX(c.bY_Index);
+                    
+                    x2(edgeI.bX_Index) = (1+lt00)*vertexVectorX(c.bX_Index)
+                    - lt00*vertexVectorX(c.aX_Index)
+                    - lt01*vertexVectorX(c.aY_Index)
+                    + lt01*vertexVectorX(c.bY_Index);
+                    
+                    x2(edgeI.bY_Index) = (1+lt11)*vertexVectorX(c.bY_Index)
+                    - lt10*vertexVectorX(c.aX_Index)
+                    + lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.aY_Index);
+                }
+                else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index) //  c.a = e.b
+                {
+                    printf("\n c.a = e.b (top left)");
+                    x2(edgeI.aX_Index) = (1+lt00)*vertexVectorX(c.aX_Index)
+                    - lt00*vertexVectorX(c.bX_Index)
+                    + lt01*vertexVectorX(c.aY_Index)
+                    - lt01*vertexVectorX(c.bY_Index);
+                    
+                    x2(edgeI.aY_Index) = (1+lt11)*vertexVectorX(c.aY_Index)
+                    + lt10*vertexVectorX(c.aX_Index)
+                    - lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.bY_Index);
+                    
+                    x2(c.aX_Index) = vertexVectorX(edgeI.aX_Index)
+                    - lt00*vertexVectorX(c.aX_Index)
+                    + lt00*vertexVectorX(c.bX_Index)
+                    - lt01*vertexVectorX(c.aY_Index)
+                    + lt01*vertexVectorX(c.bY_Index);
+                    
+                    x2(c.aY_Index) = vertexVectorX(edgeI.aY_Index)
+                    - lt10*vertexVectorX(c.aX_Index)
+                    + lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.aY_Index)
+                    + lt11*vertexVectorX(c.bY_Index);
+                }
+                else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index) //  c.b = e.b
+                {
+                    printf("\n c.b = e.b (bottom left)");
+                    x2(edgeI.aX_Index) = (1-lt00)*vertexVectorX(c.bX_Index)
+                    + lt00*vertexVectorX(c.aX_Index)
+                    + lt01*vertexVectorX(c.aY_Index)
+                    - lt01*vertexVectorX(c.bY_Index);
+                    
+                    x2(edgeI.aY_Index) = (1-lt11)*vertexVectorX(c.bY_Index)
+                    + lt10*vertexVectorX(c.aX_Index)
+                    - lt10*vertexVectorX(c.bX_Index)
+                    + lt11*vertexVectorX(c.aY_Index);
+                    
+                    x2(c.bX_Index) = vertexVectorX(edgeI.aX_Index)
+                    - lt00*vertexVectorX(c.aX_Index)
+                    + lt00*vertexVectorX(c.bX_Index)
+                    - lt01*vertexVectorX(c.aY_Index)
+                    + lt01*vertexVectorX(c.bY_Index);
+                    
+                    x2(c.bY_Index) = vertexVectorX(edgeI.aY_Index)
+                    - lt10*vertexVectorX(c.aX_Index)
+                    + lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.aY_Index)
+                    + lt11*vertexVectorX(c.bY_Index);
+                }
+                else{ // edges not connected
+                    //printf("\n edges not connected");
+                    x2(edgeI.aX_Index) = vertexVectorX(edgeI.bX_Index)
+                    + lt00*vertexVectorX(c.aX_Index)
+                    - lt00*vertexVectorX(c.bX_Index)
+                    + lt01*vertexVectorX(c.aY_Index)
+                    - lt01*vertexVectorX(c.bY_Index);
+                    
+                    x2(edgeI.aY_Index) = vertexVectorX(edgeI.bY_Index)
+                    + lt10*vertexVectorX(c.aX_Index)
+                    - lt10*vertexVectorX(c.bX_Index)
+                    + lt11*vertexVectorX(c.aY_Index)
+                    - lt11*vertexVectorX(c.bY_Index);
+                    
+                    x2(edgeI.bX_Index) = vertexVectorX(edgeI.aX_Index)
+                    - lt00*vertexVectorX(c.aX_Index)
+                    + lt00*vertexVectorX(c.bX_Index)
+                    - lt01*vertexVectorX(c.aY_Index)
+                    + lt01*vertexVectorX(c.bY_Index);
+                    
+                    x2(edgeI.bY_Index) = vertexVectorX(edgeI.aY_Index)
+                    - lt10*vertexVectorX(c.aX_Index)
+                    + lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.aY_Index)
+                    + lt11*vertexVectorX(c.bY_Index);
+                }
+                 */
+                 
+                
+                /*
+                //test linear scaling
+                // my own scaling (pure linear scaling using original matrix T)
+                double lt00 = T(0,0);
+                double lt01 = T(0,1);
+                double lt10 = T(1,0);
+                double lt11 = T(1,1);
+                 
+                double xScale = 1.0*newWidth/nOriginal;
+                double yScale = 1.0*newHeight/mOriginal;
+                MeshEdge edgeI = p.patchEdges[edgeCounter];
+                
+                x2(edgeI.aX_Index) = xScale*(vertexVectorX(edgeI.bX_Index)
+                + lt00*vertexVectorX(c.aX_Index)
+                - lt00*vertexVectorX(c.bX_Index)
+                + lt01*vertexVectorX(c.aY_Index)
+                - lt01*vertexVectorX(c.bY_Index));
+                
+                x2(edgeI.aY_Index) = yScale*(vertexVectorX(edgeI.bY_Index)
+                + lt10*vertexVectorX(c.aX_Index)
+                - lt10*vertexVectorX(c.bX_Index)
+                + lt11*vertexVectorX(c.aY_Index)
+                - lt11*vertexVectorX(c.bY_Index));
+                
+                x2(edgeI.bX_Index) = xScale*(vertexVectorX(edgeI.aX_Index)
+                - lt00*vertexVectorX(c.aX_Index)
+                + lt00*vertexVectorX(c.bX_Index)
+                - lt01*vertexVectorX(c.aY_Index)
+                + lt01*vertexVectorX(c.bY_Index));
+                
+                x2(edgeI.bY_Index) = yScale*(vertexVectorX(edgeI.aY_Index)
+                - lt10*vertexVectorX(c.aX_Index)
+                + lt10*vertexVectorX(c.bX_Index)
+                - lt11*vertexVectorX(c.aY_Index)
+                + lt11*vertexVectorX(c.bY_Index));
+                 */
                 
                 double lt00 = T(0,0);
                 double lt01 = T(0,1);
                 double lt10 = T(1,0);
                 double lt11 = T(1,1);
                 
+                MeshEdge edgeI = p.patchEdges[edgeCounter];
                 double xScale = 1.0*newWidth/nOriginal;
                 double yScale = 1.0*newHeight/mOriginal;
                 
-                MeshEdge edgeI = p.patchEdges[edgeCounter];
-                double cx = vertexVectorX(c.aX_Index) - vertexVectorX(c.bX_Index);
-                double cy = vertexVectorX(c.aY_Index) - vertexVectorX(c.bY_Index);
-                
-                //test linear scaling
-                x2(edgeI.aX_Index) = xScale*(vertexVectorX(edgeI.bX_Index) + lt00*cx + lt01*cy);
-                x2(edgeI.aY_Index) = yScale*(vertexVectorX(edgeI.bY_Index) + lt10*cx + lt11*cy);
-                
-                x2(edgeI.bX_Index) = xScale*(vertexVectorX(edgeI.aX_Index) - lt00*cx - lt01*cy);
-                x2(edgeI.bY_Index) = yScale*(vertexVectorX(edgeI.aY_Index) - lt10*cx - lt11*cy);
+                if(c.aX_Index == edgeI.aX_Index && c.aY_Index == edgeI.aY_Index) //2 cases (c=e or ca=ea (top))
+                {
+                    if (c.bX_Index == edgeI.bX_Index
+                        && c.bY_Index == edgeI.bY_Index) //c = e
+                    {
+                        printf("\n c = e (same edge)");
+                        
+                        x2(c.aX_Index) = xScale*((1-lt00)*vertexVectorX(c.bX_Index)
+                        + lt00*vertexVectorX(c.aX_Index)
+                        + lt01*vertexVectorX(c.aY_Index)
+                        - lt01*vertexVectorX(c.bY_Index));
+                        
+                        x2(c.aY_Index) = yScale*((1-lt11)*vertexVectorX(c.bY_Index)
+                        + lt10*vertexVectorX(c.aX_Index)
+                        - lt10*vertexVectorX(c.bX_Index)
+                        + lt11*vertexVectorX(c.aY_Index));
+                        
+                        x2(c.bX_Index) = xScale*((1-lt00)*vertexVectorX(c.aX_Index)
+                        + lt00*vertexVectorX(c.bX_Index)
+                        - lt01*vertexVectorX(c.aY_Index)
+                        + lt01*vertexVectorX(c.bY_Index));
+                        
+                        x2(c.bY_Index) = yScale*((1-lt11)*vertexVectorX(c.aY_Index)
+                        - lt10*vertexVectorX(c.aX_Index)
+                        + lt10*vertexVectorX(c.bX_Index)
+                        + lt11*vertexVectorX(c.bY_Index));
+                    }
+                    else //c.a = e.a
+                    {
+                        printf("\n c.a = e.a (top right)");
+                        x2(c.aX_Index) = xScale*(vertexVectorX(edgeI.bX_Index)
+                        + lt00*vertexVectorX(c.aX_Index)
+                        - lt00*vertexVectorX(c.bX_Index)
+                        + lt01*vertexVectorX(c.aY_Index)
+                        - lt01*vertexVectorX(c.bY_Index));
+                        
+                        x2(c.aY_Index) = yScale*(vertexVectorX(edgeI.bY_Index)
+                        + lt10*vertexVectorX(c.aX_Index)
+                        - lt10*vertexVectorX(c.bX_Index)
+                        + lt11*vertexVectorX(c.aY_Index)
+                        - lt11*vertexVectorX(c.bY_Index));
+                        
+                        x2(edgeI.bX_Index) = xScale*((1-lt00)*vertexVectorX(c.aX_Index)
+                        + lt00*vertexVectorX(c.bX_Index)
+                        - lt01*vertexVectorX(c.aY_Index)
+                        + lt01*vertexVectorX(c.bY_Index));
+                        
+                        x2(edgeI.bY_Index) = yScale*((1-lt11)*vertexVectorX(c.aY_Index)
+                        - lt10*vertexVectorX(c.aX_Index)
+                        + lt10*vertexVectorX(c.bX_Index)
+                        + lt11*vertexVectorX(c.bY_Index));
+                    }
+                }
+                else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index) //  c.b = e.a
+                {
+                    printf("\n c.b = e.a (bottom right)");
+                    x2(c.bX_Index) = xScale*(vertexVectorX(edgeI.bX_Index)
+                    + lt00*vertexVectorX(c.aX_Index)
+                    - lt00*vertexVectorX(c.bX_Index)
+                    + lt01*vertexVectorX(c.aY_Index)
+                    - lt01*vertexVectorX(c.bY_Index));
+                    
+                    x2(c.bY_Index) = yScale*(vertexVectorX(edgeI.bY_Index)
+                    + lt10*vertexVectorX(c.aX_Index)
+                    - lt10*vertexVectorX(c.bX_Index)
+                    + lt11*vertexVectorX(c.aY_Index)
+                    - lt11*vertexVectorX(c.bY_Index));
+                    
+                    x2(edgeI.bX_Index) = xScale*((1+lt00)*vertexVectorX(c.bX_Index)
+                    - lt00*vertexVectorX(c.aX_Index)
+                    - lt01*vertexVectorX(c.aY_Index)
+                    + lt01*vertexVectorX(c.bY_Index));
+                    
+                    x2(edgeI.bY_Index) = yScale*((1+lt11)*vertexVectorX(c.bY_Index)
+                    - lt10*vertexVectorX(c.aX_Index)
+                    + lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.aY_Index));
+                }
+                else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index) //  c.a = e.b
+                {
+                    printf("\n c.a = e.b (top left)");
+                    x2(edgeI.aX_Index) = xScale*((1+lt00)*vertexVectorX(c.aX_Index)
+                    - lt00*vertexVectorX(c.bX_Index)
+                    + lt01*vertexVectorX(c.aY_Index)
+                    - lt01*vertexVectorX(c.bY_Index));
+                    
+                    x2(edgeI.aY_Index) = yScale*((1+lt11)*vertexVectorX(c.aY_Index)
+                    + lt10*vertexVectorX(c.aX_Index)
+                    - lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.bY_Index));
+                    
+                    x2(c.aX_Index) = xScale*(vertexVectorX(edgeI.aX_Index)
+                    - lt00*vertexVectorX(c.aX_Index)
+                    + lt00*vertexVectorX(c.bX_Index)
+                    - lt01*vertexVectorX(c.aY_Index)
+                    + lt01*vertexVectorX(c.bY_Index));
+                    
+                    x2(c.aY_Index) = yScale*(vertexVectorX(edgeI.aY_Index)
+                    - lt10*vertexVectorX(c.aX_Index)
+                    + lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.aY_Index)
+                    + lt11*vertexVectorX(c.bY_Index));
+                }
+                else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index) //  c.b = e.b
+                {
+                    printf("\n c.b = e.b (bottom left)");
+                    x2(edgeI.aX_Index) = xScale*((1-lt00)*vertexVectorX(c.bX_Index)
+                    + lt00*vertexVectorX(c.aX_Index)
+                    + lt01*vertexVectorX(c.aY_Index)
+                    - lt01*vertexVectorX(c.bY_Index));
+                    
+                    x2(edgeI.aY_Index) = yScale*((1-lt11)*vertexVectorX(c.bY_Index)
+                    + lt10*vertexVectorX(c.aX_Index)
+                    - lt10*vertexVectorX(c.bX_Index)
+                    + lt11*vertexVectorX(c.aY_Index));
+                    
+                    x2(c.bX_Index) = xScale*(vertexVectorX(edgeI.aX_Index)
+                    - lt00*vertexVectorX(c.aX_Index)
+                    + lt00*vertexVectorX(c.bX_Index)
+                    - lt01*vertexVectorX(c.aY_Index)
+                    + lt01*vertexVectorX(c.bY_Index));
+                    
+                    x2(c.bY_Index) = yScale*(vertexVectorX(edgeI.aY_Index)
+                    - lt10*vertexVectorX(c.aX_Index)
+                    + lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.aY_Index)
+                    + lt11*vertexVectorX(c.bY_Index));
+                }
+                else{ // edges not connected
+                    //printf("\n edges not connected");
+                    x2(edgeI.aX_Index) = xScale*(vertexVectorX(edgeI.bX_Index)
+                    + lt00*vertexVectorX(c.aX_Index)
+                    - lt00*vertexVectorX(c.bX_Index)
+                    + lt01*vertexVectorX(c.aY_Index)
+                    - lt01*vertexVectorX(c.bY_Index));
+                    
+                    x2(edgeI.aY_Index) = yScale*(vertexVectorX(edgeI.bY_Index)
+                    + lt10*vertexVectorX(c.aX_Index)
+                    - lt10*vertexVectorX(c.bX_Index)
+                    + lt11*vertexVectorX(c.aY_Index)
+                    - lt11*vertexVectorX(c.bY_Index));
+                    
+                    x2(edgeI.bX_Index) = xScale*(vertexVectorX(edgeI.aX_Index)
+                    - lt00*vertexVectorX(c.aX_Index)
+                    + lt00*vertexVectorX(c.bX_Index)
+                    - lt01*vertexVectorX(c.aY_Index)
+                    + lt01*vertexVectorX(c.bY_Index));
+                    
+                    x2(edgeI.bY_Index) = yScale*(vertexVectorX(edgeI.aY_Index)
+                    - lt10*vertexVectorX(c.aX_Index)
+                    + lt10*vertexVectorX(c.bX_Index)
+                    - lt11*vertexVectorX(c.aY_Index)
+                    + lt11*vertexVectorX(c.bY_Index));
+                }
                 
             }
         }

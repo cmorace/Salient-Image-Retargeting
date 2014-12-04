@@ -280,7 +280,9 @@ void ImageRetargetingApp::updateWindows()
       retargetedImageWindow->setSize(originalTexture.getWidth(), originalTexture.getHeight());
     }
     if(segmentedImageWindow){
-        segmentedImageWindow->setSize(segmentedTexture.getWidth(), segmentedTexture.getHeight());
+        if(meshWarpingState!= MeshWarpingState::ShowMeshWarping){
+            segmentedImageWindow->setSize(segmentedTexture.getWidth(), segmentedTexture.getHeight());
+        }
     }
     if(gradientImageWindow){
         gradientImageWindow->setSize(seamCarvedTexture.getWidth(), seamCarvedTexture.getHeight());
@@ -347,7 +349,6 @@ void ImageRetargetingApp::drawSegmentedImageWindow()
           
         case MeshWarpingState::ShowMeshWarping :
             if( originalTexture ) {
-                meshWarpRetargetter->resizeMesh(800, 400);
                 meshWarpRetargetter->drawMesh(originalTexture);
             }
             break;
@@ -509,6 +510,7 @@ void ImageRetargetingApp::getMeshButtonClick()
 {
     meshWarpRetargetter->initMesh(saliencyImage.getWidth(),saliencyImage.getHeight());
     meshWarpingState = MeshWarpingState::ShowMesh;
+    meshWarpRetargetter->isDrawingWireFrame = true;
     updateApplication();
 }
 
@@ -522,14 +524,14 @@ void ImageRetargetingApp::getPatchEdgeClick()
 void ImageRetargetingApp::setMeshOptimizationMatrixClick()
 {
     printf("\nsetting mesh optimization matrix");
-    meshWarpRetargetter->computeOptimizationMatrix(800 , 400);
+    meshWarpRetargetter->computeOptimizationMatrix(segmentedImageWindow->getWidth() , segmentedImageWindow->getHeight());
+    meshWarpingState = MeshWarpingState::ShowMeshWarping;
+    meshWarpRetargetter->isDrawingWireFrame = false;
     updateApplication();
 }
 
 void ImageRetargetingApp::getEnergyTermsClick()
 {
-    meshWarpRetargetter->resizeMesh(400, 300);
-    meshWarpingState = MeshWarpingState::ShowMeshWarping;
     updateApplication();
 }
 

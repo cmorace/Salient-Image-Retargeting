@@ -26,28 +26,12 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../include/MeshWarpRetargetter.h"
-            timestampString = "439309259.932388"
+            timestampString = "439411482.369064"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "184"
-            endingLineNumber = "184"
+            startingLineNumber = "188"
+            endingLineNumber = "188"
             landmarkName = "MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight)"
-            landmarkType = "5">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "../include/MeshWarpRetargetter.h"
-            timestampString = "439330390.91659"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1793"
-            endingLineNumber = "1793"
-            landmarkName = "MeshWarpRetargetter::resizeMesh(int newWidth, int newHeight)"
             landmarkType = "5">
          </BreakpointContent>
       </BreakpointProxy>

@@ -23,7 +23,6 @@ public:
     void drawMesh(ci::gl::Texture texture);
     void drawEdges(ci::gl::Texture texture);
     void computeOptimizationMatrix(int newWidth, int newHeight);
-    void resizeMesh(int newWidth, int newHeight);
     
     int quadSize = 30;
     double transformationAlpha = 0.8;
@@ -98,7 +97,12 @@ private:
 
     Eigen::Matrix2d computeTransformation(MeshEdge c, MeshEdge e);
     Eigen::Matrix2d computeLinearTransformation(Eigen::Matrix2d, int newWidth, int newHeight, int oldWidth, int oldHeight);
-    
+    int computeTransformationTerms(std::vector< Eigen::Triplet<double>> &terms, double saliencyWeight, int rowIndex);
+    int computeLinearTransformationTerms(std::vector< Eigen::Triplet<double> > &terms, double saliencyWeight, int rowIndex, int newWidth, int newHeight);
+    int computeGridOrientationTerms(std::vector< Eigen::Triplet<double>> &terms, int rowIndex);
+    int computeBoundaryConditionTerms(std::vector< Eigen::Triplet<double>> &terms, Eigen::VectorXd &b, double weight, int rowIndex, int newWidth, int newHeight);
+
+
     void testEnergyTerms(int newWidth, int newHeight);
 };
 
@@ -322,18 +326,44 @@ Eigen::Matrix2d MeshWarpRetargetter::computeLinearTransformation(Eigen::Matrix2d
 
 void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
 {
-    Eigen::VectorXd x2(2*numVertices);
+    int rows = 2*numEdges                                                           // transformation terms
+             + 2*numEdges                                                           // linear transformation terms
+             + 2*(numXVertices-2)*(numYVertices-2)+4*(numXVertices+numYVertices-3)  // grid orientation terms
+             + 2*(numXVertices+numYVertices);                                       // boundary condition terms
     
-    int rows = 2*numEdges +2*numEdges + 2*(numXVertices-2)*(numYVertices-2)+4*(numXVertices+numYVertices-3) + 2*(numXVertices+numYVertices);
-    printf("calculated rows = %d",rows);
+    printf("\ncalculated rows = %d",rows);
+    
     Eigen::SparseMatrix<double> A(rows,2*numVertices);
     A.setZero();
     
     Eigen::VectorXd b(rows);
     b.setZero();
     
-    int rowIndex = 0;
     
+    
+    int rowIndex = 0;
+    double w1 = 0.8; //saliency weight
+    double w2 = numVertices; //boundary weight
+    
+    std::vector<Eigen::Triplet<double>> tripletList;
+    tripletList.reserve(rows);
+    rowIndex = computeTransformationTerms(tripletList, w1, rowIndex);
+    rowIndex = computeLinearTransformationTerms(tripletList, w1, rowIndex, newWidth, newHeight);
+    rowIndex = computeGridOrientationTerms(tripletList, rowIndex);
+    rowIndex = computeBoundaryConditionTerms(tripletList, b, w2, rowIndex, newWidth, newHeight);
+    
+    printf("\ntripletList.size = %lu",tripletList.size());
+    A.setFromTriplets(tripletList.begin(), tripletList.end());
+    printf("\ntotal rows = %d\n",rowIndex);
+    
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double> > cg;
+    Eigen::SparseMatrix<double> AT = A.transpose();
+    Eigen::SparseMatrix<double> ATA = AT*A;
+    Eigen::VectorXd ATb = AT*b;
+    cg.compute(ATA);
+    
+    
+    Eigen::VectorXd x2(2*numVertices);
     int vertexCounter = 0;
     for( int x = 0; x < numXVertices; ++x ) {
         for( int y = 0; y < numYVertices; ++y ) {
@@ -343,12 +373,246 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
         }
     }
     
-    double w1 = 0.8; //saliency weight
-    double w2 = numVertices; //boundary weight
+    //cg.setTolerance(1.0e-12);
+    x2 = cg.solveWithGuess(ATb,x2);
+    std::cout << "#iterations:     " << cg.iterations() << std::endl;
+    std::cout << "estimated error: " << cg.error()      << std::endl;
     
-    printf("\n compute transformation terms");
-    //compute transformation terms
     
+    
+    gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
+    vertexCounter = 0;
+    for( int x = 0; x < numXVertices; ++x ) {
+        for( int y = 0; y < numYVertices; ++y ) {
+            float vX = x2(vertexCounter);
+            float vY = x2(numVertices + vertexCounter);
+            iter.setPosition(vX, vY, 0.0f );
+            ++iter;
+            vertexCounter++;
+        }
+    }
+}
+
+int MeshWarpRetargetter::computeBoundaryConditionTerms(std::vector< Eigen::Triplet<double> > &terms, Eigen::VectorXd &b, double weight, int rowIndex, int newWidth, int newHeight)
+{
+    std::vector<int>::iterator botIter = bottomBoundaryIndices.begin();
+    for (std::vector<int>::iterator topIter = topBoundaryIndices.begin(); topIter!=topBoundaryIndices.end(); topIter++,botIter++)
+    {
+        //we could precompute these
+        //x2(*topIter) = 0;
+        terms.push_back(Eigen::Triplet<double>(rowIndex, *topIter, weight));
+        rowIndex++;
+        
+        //x2(*botIter) = newHeight;
+        terms.push_back(Eigen::Triplet<double>(rowIndex, *botIter, weight));
+        b(rowIndex) = weight*newHeight;
+        rowIndex++;
+    }
+    
+    std::vector<int>::iterator leftIter = leftBoundaryIndices.begin();
+    for (std::vector<int>::iterator rightIter = rightBoundaryIndices.begin(); rightIter!=rightBoundaryIndices.end(); rightIter++,leftIter++)
+    {
+        //we could precompute these
+        //x2(*leftIter) = 0;
+        terms.push_back(Eigen::Triplet<double>(rowIndex, *leftIter, weight));
+        rowIndex++;
+        
+        //x2(*rightIter) = newWidth;
+        terms.push_back(Eigen::Triplet<double>(rowIndex, *rightIter, weight));
+        b(rowIndex) = weight*newWidth;
+        rowIndex++;
+    }
+    return rowIndex;
+}
+
+
+int MeshWarpRetargetter::computeGridOrientationTerms(std::vector< Eigen::Triplet<double>> &terms, int rowIndex){
+    std::vector<MeshQuad>::iterator quadIter = meshQuads.begin();
+    
+    for(int x=0; x<numXVertices-1; x++)
+    {
+        for(int y=0; y<numYVertices-1; y++,quadIter++)
+        {
+            MeshQuad quad = *quadIter;
+            
+            if(y < numYVertices-2 && x < numXVertices-2)
+            {
+                //x2(quad.tlY_Index) = x2(quad.trY_Index);
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.tlY_Index, 1));
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.trY_Index, -1));
+                rowIndex++;
+                
+                //x2(quad.tlX_Index) = x2(quad.blX_Index);
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.tlX_Index, 1));
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.blX_Index, -1));
+                rowIndex++;
+            }
+            else    //  bottom row and left column set all 4 vertices
+            {
+                // x2(quad.tlY_Index) = x2(quad.trY_Index);
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.tlY_Index, 1));
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.trY_Index, -1));
+                rowIndex++;
+                
+                // x2(quad.tlX_Index) = x2(quad.blX_Index);
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.tlX_Index, 1));
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.blX_Index, -1));
+                rowIndex++;
+                
+                // x2(quad.trX_Index) = x2(quad.brX_Index);
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.trX_Index, 1));
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.brX_Index, -1));
+                rowIndex++;
+                
+                // x2(quad.blY_Index) = x2(quad.brY_Index);
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.blY_Index, 1));
+                terms.push_back(Eigen::Triplet<double>(rowIndex, quad.blY_Index, -1));
+                rowIndex++;
+            }
+        }
+    }
+    return rowIndex;
+}
+
+
+int MeshWarpRetargetter::computeLinearTransformationTerms(std::vector< Eigen::Triplet<double> > &terms, double saliencyWeight, int rowIndex, int newWidth, int newHeight)
+{
+    for (std::vector<MeshPatch>::iterator iter = meshPatches.begin(); iter != meshPatches.end(); iter++) {
+        MeshPatch p = *iter;
+        
+        if(p.patchEdges.size() > 0)
+        {
+            MeshEdge c = p.c;
+            int edgeCounter = 0;
+            for (std::vector<Eigen::Matrix2d>::iterator iter = p.transformation.begin(); iter != p.transformation.end(); iter++,edgeCounter++) {
+                
+                Eigen::Matrix2d T = *iter;
+                Eigen::Matrix2d LT = computeLinearTransformation(T,newWidth,newHeight,nOriginal,mOriginal);
+                
+                int w = (1-saliencyWeight) * p.p.normalScore;
+                // Papers equations
+                double lt00 = w*LT(0,0);
+                double lt01 = w*LT(0,1);
+                double lt10 = w*LT(1,0);
+                double lt11 = w*LT(1,1);
+                
+                MeshEdge edgeI = p.patchEdges[edgeCounter];
+                
+                if(c.aX_Index == edgeI.aX_Index && c.aY_Index == edgeI.aY_Index) //2 cases (c=e or ca=ea (top))
+                {
+                    if (c.bX_Index == edgeI.bX_Index
+                        && c.bY_Index == edgeI.bY_Index) //c = e
+                    {
+                        //printf("\n c = e (same edge)");
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt00-w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, w-lt00));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt01));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt01));
+                        rowIndex++;
+                        
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt10));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt10));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt11-w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, w-lt11));
+                        rowIndex++;
+                    }
+                    else //c.a = e.a
+                    {
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bX_Index, w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt00-w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt00));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt01));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt01));
+                        rowIndex++;
+                        
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bY_Index, w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt10));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt10));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt11-w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt11));
+                        rowIndex++;
+                    }
+                }
+                else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index) //  c.b = e.a
+                {
+                    //printf("\n c.b = e.a (bottom right)");
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bX_Index, w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt00));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt10-w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt01));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt01));
+                    rowIndex++;
+                    
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bY_Index, w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt11));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt11-w));
+                    rowIndex++;
+                    
+                }
+                else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index) //  c.a = e.b
+                {
+                    // printf("\n c.a = e.b (top left)");
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aX_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, w+lt00));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt00));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt01));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt01));
+                    rowIndex++;
+                    
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aY_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, w+lt11));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt11));
+                    rowIndex++;
+                    
+                }
+                else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index) //  c.b = e.b
+                {
+                    //printf("\n c.b = e.b (bottom left)");
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aX_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt00));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, w-lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt01));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt01));
+                    rowIndex++;
+                    
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aY_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt11));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, w-lt11));
+                    rowIndex++;
+                }
+                else{ // edges not connected
+                    //printf("\n edges not connected");
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aX_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bX_Index, w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt00));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt00));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt01));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt01));
+                    rowIndex++;
+                    
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aY_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bY_Index, w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt11));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt11));
+                    rowIndex++;
+                }
+            }
+        }
+    }
+    return rowIndex;
+}
+
+
+int MeshWarpRetargetter::computeTransformationTerms(std::vector< Eigen::Triplet<double>> &terms, double saliencyWeight, int rowIndex)
+{
     
     for (std::vector<MeshPatch>::iterator iter = meshPatches.begin(); iter != meshPatches.end(); iter++) {
         MeshPatch p = *iter;
@@ -356,7 +620,7 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
         if(p.patchEdges.size() > 0)
         {
             MeshEdge c = p.c;
-            double w = w1*p.p.normalScore; //saliency weight
+            double w = saliencyWeight*p.p.normalScore; //saliency weight
             int edgeCounter = 0;
             for (std::vector<Eigen::Matrix2d>::iterator iter = p.transformation.begin(); iter != p.transformation.end(); iter++,edgeCounter++) {
                 
@@ -373,915 +637,494 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
                 {
                     if (c.bX_Index == edgeI.bX_Index
                         && c.bY_Index == edgeI.bY_Index)
-                                                            //  c = e
+                        //  c = e
                     {
                         //x2(c.aX_Index) = (1-s)*x2(c.bX_Index) + s*x2(c.aX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
-                        A.insert(rowIndex, c.aX_Index) = s-w;
-                        A.insert(rowIndex, c.bX_Index) = w-s;
-                        A.insert(rowIndex, c.aY_Index) = r;
-                        A.insert(rowIndex, c.bY_Index) = -r;
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, s-w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, w-s));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, r));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -r));
                         rowIndex++;
                         
                         //x2(c.aY_Index) = (1-s)*x2(c.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index);
-                        A.insert(rowIndex, c.aX_Index) = -r;
-                        A.insert(rowIndex, c.bX_Index) = r;
-                        A.insert(rowIndex, c.aY_Index) = s-w;
-                        A.insert(rowIndex, c.bY_Index) = w-s;
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, -r));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, r));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, s-w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, w-s));
                         rowIndex++;
-                        /*
-                        //x2(c.bX_Index) = (1-s)*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
-                        A.insert(rowIndex, c.aX_Index) = w-s;
-                        A.insert(rowIndex, c.bX_Index) = s-w;
-                        A.insert(rowIndex, c.aY_Index) = -r;
-                        A.insert(rowIndex, c.bY_Index) = r;
-                        rowIndex++;
-                        
-                        //x2(c.bY_Index) = (1-s)*x2(c.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) + s*x2(c.bY_Index);
-                        A.insert(rowIndex, c.aX_Index) = r;
-                        A.insert(rowIndex, c.bX_Index) = -r;
-                        A.insert(rowIndex, c.aY_Index) = w-s;
-                        A.insert(rowIndex, c.bY_Index) = s-w;
-                        rowIndex++;
-                         */
                     }
                     else                                     // c.a = e.a
                     {
                         //x2(c.aX_Index) = x2(edgeI.bX_Index) + s*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
-                        A.insert(rowIndex, edgeI.bX_Index) = w;
-                        A.insert(rowIndex, c.aX_Index) = s-w;
-                        A.insert(rowIndex, c.bX_Index) = -s;
-                        A.insert(rowIndex, c.aY_Index) = r;
-                        A.insert(rowIndex, c.bY_Index) = -r;
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bX_Index, w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, s-w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -s));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, r));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -r));
                         rowIndex++;
                         
                         //x2(c.aY_Index) = x2(edgeI.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index) - s*x2(c.bY_Index);
-                        A.insert(rowIndex, edgeI.bY_Index) = w;
-                        A.insert(rowIndex, c.aX_Index) = -r;
-                        A.insert(rowIndex, c.bX_Index) = r;
-                        A.insert(rowIndex, c.aY_Index) = s-w;
-                        A.insert(rowIndex, c.bY_Index) = -s;
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bY_Index, w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, -r));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, r));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, s-w));
+                        terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -s));
                         rowIndex++;
-                        
-                        /*
-                        //x2(edgeI.bX_Index) = (1-s)*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
-                        A.insert(rowIndex, edgeI.bX_Index) = -w;
-                        A.insert(rowIndex, c.aX_Index) = w-s;
-                        A.insert(rowIndex, c.bX_Index) = s;
-                        A.insert(rowIndex, c.aY_Index) = -r;
-                        A.insert(rowIndex, c.bY_Index) = r;
-                        rowIndex++;
-                        
-                        //x2(edgeI.bY_Index) = (1-s)*x2(c.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) + s*x2(c.bY_Index);
-                        A.insert(rowIndex, edgeI.bY_Index) = -w;
-                        A.insert(rowIndex, c.aX_Index) = r;
-                        A.insert(rowIndex, c.bX_Index) = -r;
-                        A.insert(rowIndex, c.aY_Index) = w-s;
-                        A.insert(rowIndex, c.bY_Index) = s;
-                        rowIndex++;
-                         */
                     }
                 }
                 else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index)
-                                                            //  c.b = e.a
+                    //  c.b = e.a
                 {
                     //printf("\n c.b = e.a (bottom right)");
                     //x2(c.bX_Index) = x2(edgeI.bX_Index) + s*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.bX_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = s;
-                    A.insert(rowIndex, c.bX_Index) = -w-s;
-                    A.insert(rowIndex, c.aY_Index) = r;
-                    A.insert(rowIndex, c.bY_Index) = -r;
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bX_Index, w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -w-s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -r));
                     rowIndex++;
                     
                     //x2(c.bY_Index) = x2(edgeI.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index) - s*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.bY_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = -r;
-                    A.insert(rowIndex, c.bX_Index) = r;
-                    A.insert(rowIndex, c.aY_Index) = s;
-                    A.insert(rowIndex, c.bY_Index) = -w-s;
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bY_Index, w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, -r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -w-s));
                     rowIndex++;
-                    
-                    /*
-                    //x2(edgeI.bX_Index) = (1+s)*x2(c.bX_Index) - s*x2(c.aX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.bX_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = -s;
-                    A.insert(rowIndex, c.bX_Index) = w+s;
-                    A.insert(rowIndex, c.aY_Index) = -r;
-                    A.insert(rowIndex, c.bY_Index) = r;
-                    rowIndex++;
-                    
-                    //x2(edgeI.bY_Index) = (1+s)*x2(c.bY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) - s*x2(c.aY_Index);
-                    A.insert(rowIndex, edgeI.bY_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = r;
-                    A.insert(rowIndex, c.bX_Index) = -r;
-                    A.insert(rowIndex, c.aY_Index) = -s;
-                    A.insert(rowIndex, c.bY_Index) = w+s;
-                    rowIndex++;
-                     */
                     
                 }
                 else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index)
-                                                        //  c.a = e.b
+                    //  c.a = e.b
                 {
                     //printf("\n c.a = e.b (top left)");
                     //x2(edgeI.aX_Index) = (1+s)*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.aX_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = w+s;
-                    A.insert(rowIndex, c.bX_Index) = -s;
-                    A.insert(rowIndex, c.aY_Index) = r;
-                    A.insert(rowIndex, c.bY_Index) = -r;
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aX_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, w+s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -r));
                     rowIndex++;
                     
                     //x2(edgeI.aY_Index) = (1+s)*x2(c.aY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) - s*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.aY_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = -r;
-                    A.insert(rowIndex, c.bX_Index) = r;
-                    A.insert(rowIndex, c.aY_Index) = w+s;
-                    A.insert(rowIndex, c.bY_Index) = -s;
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aY_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, -r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, w+s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -s));
                     rowIndex++;
-                    
-                    /*
-                    //x2(c.aX_Index) = x2(edgeI.aX_Index) - s*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.aX_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = -w-s;
-                    A.insert(rowIndex, c.bX_Index) = s;
-                    A.insert(rowIndex, c.aY_Index) = -r;
-                    A.insert(rowIndex, c.bY_Index) = r;
-                    rowIndex++;
-                    
-                    //x2(c.aY_Index) = x2(edgeI.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) - s*x2(c.aY_Index) + s*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.aY_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = r;
-                    A.insert(rowIndex, c.bX_Index) = -r;
-                    A.insert(rowIndex, c.aY_Index) = -w-s;
-                    A.insert(rowIndex, c.bY_Index) = s;
-                    rowIndex++;
-                     */
                 }
                 else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index)
-                                                            //  c.b = e.b
+                    //  c.b = e.b
                 {
                     //printf("\n c.b = e.b (bottom left)");
                     //x2(edgeI.aX_Index) = (1-s)*x2(c.bX_Index) + s*x2(c.aX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.aX_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = s;
-                    A.insert(rowIndex, c.bX_Index) = w-s;
-                    A.insert(rowIndex, c.aY_Index) = r;
-                    A.insert(rowIndex, c.bY_Index) = -r;
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aX_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, w-s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -r));
                     rowIndex++;
                     
                     //x2(edgeI.aY_Index) = (1-s)*x2(c.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index);
-                    A.insert(rowIndex, edgeI.aY_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = -r;
-                    A.insert(rowIndex, c.bX_Index) = r;
-                    A.insert(rowIndex, c.aY_Index) = s;
-                    A.insert(rowIndex, c.bY_Index) = w-s;
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aY_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, -r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, w-s));
                     rowIndex++;
-                    
-                    /*
-                    //x2(c.bX_Index) = x2(edgeI.aX_Index) - s*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.aX_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = -s;
-                    A.insert(rowIndex, c.bX_Index) = s-w;
-                    A.insert(rowIndex, c.aY_Index) = -r;
-                    A.insert(rowIndex, c.bY_Index) = r;
-                    rowIndex++;
-                    
-                    //x2(c.bY_Index) = x2(edgeI.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) - s*x2(c.aY_Index) + s*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.aY_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = r;
-                    A.insert(rowIndex, c.bX_Index) = -r;
-                    A.insert(rowIndex, c.aY_Index) = -s;
-                    A.insert(rowIndex, c.bY_Index) = s-w;
-                    rowIndex++;
-                     */
                 }
                 else{                                       // edges not connected
                     //printf("\n edges not connected");
                     //x2(edgeI.aX_Index) = x2(edgeI.bX_Index) + s*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.aX_Index) = -w;
-                    A.insert(rowIndex, edgeI.bX_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = s;
-                    A.insert(rowIndex, c.bX_Index) = -s;
-                    A.insert(rowIndex, c.aY_Index) = r;
-                    A.insert(rowIndex, c.bY_Index) = -r;
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aX_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bX_Index, w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -r));
                     rowIndex++;
                     
                     //x2(edgeI.aY_Index) = x2(edgeI.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index) - s*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.aY_Index) = -w;
-                    A.insert(rowIndex, edgeI.bY_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = -r;
-                    A.insert(rowIndex, c.bX_Index) = r;
-                    A.insert(rowIndex, c.aY_Index) = s;
-                    A.insert(rowIndex, c.bY_Index) = -s;
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aY_Index, -w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bY_Index, w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, -r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, r));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, s));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -s));
                     rowIndex++;
-                    
-                    /*
-                    //x2(edgeI.bX_Index) = x2(edgeI.aX_Index) - s*x2(c.aX_Index) + s*x2(c.bX_Index) - r*x2(c.aY_Index) + r*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.bX_Index) = -w;
-                    A.insert(rowIndex, edgeI.aX_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = s;
-                    A.insert(rowIndex, c.bX_Index) = -s;
-                    A.insert(rowIndex, c.aY_Index) = r;
-                    A.insert(rowIndex, c.bY_Index) = -r;
-                    rowIndex++;
-                    
-                    //x2(edgeI.bY_Index) = x2(edgeI.aY_Index) + r*x2(c.aX_Index) - r*x2(c.bX_Index) - s*x2(c.aY_Index) + s*x2(c.bY_Index);
-                    A.insert(rowIndex, edgeI.bY_Index) = -w;
-                    A.insert(rowIndex, edgeI.aY_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = r;
-                    A.insert(rowIndex, c.bX_Index) = -r;
-                    A.insert(rowIndex, c.aY_Index) = -s;
-                    A.insert(rowIndex, c.bY_Index) = s;
-                    rowIndex++;
-                     */
                 }
             }
         }
     }
-    printf("\n nb of transformation rows = %d",rowIndex);
-    
-    
-    for (std::vector<MeshPatch>::iterator iter = meshPatches.begin(); iter != meshPatches.end(); iter++) {
-        MeshPatch p = *iter;
-        
-        if(p.patchEdges.size() > 0)
-        {
-            MeshEdge c = p.c;
-            int edgeCounter = 0;
-            for (std::vector<Eigen::Matrix2d>::iterator iter = p.transformation.begin(); iter != p.transformation.end(); iter++,edgeCounter++) {
-                
-                Eigen::Matrix2d T = *iter;
-                Eigen::Matrix2d LT = computeLinearTransformation(T,newWidth,newHeight,nOriginal,mOriginal);
-                
-                int w = (1-w1) * p.p.normalScore;
-                // Papers equations
-                double lt00 = w*LT(0,0);
-                double lt01 = w*LT(0,1);
-                double lt10 = w*LT(1,0);
-                double lt11 = w*LT(1,1);
-                
-                MeshEdge edgeI = p.patchEdges[edgeCounter];
-                
-                if(c.aX_Index == edgeI.aX_Index && c.aY_Index == edgeI.aY_Index) //2 cases (c=e or ca=ea (top))
-                {
-                    if (c.bX_Index == edgeI.bX_Index
-                        && c.bY_Index == edgeI.bY_Index) //c = e
-                    {
-                        //printf("\n c = e (same edge)");
-                        /*
-                         x2(c.aX_Index) =
-                         + lt00*vertexVectorX(c.aX_Index)
-                         + (1-lt00)*vertexVectorX(c.bX_Index)
-                         + lt01*vertexVectorX(c.aY_Index)
-                         - lt01*vertexVectorX(c.bY_Index);
-                         */
-                        A.insert(rowIndex, c.aX_Index) = lt00-w;
-                        A.insert(rowIndex, c.bX_Index) = w-lt00;
-                        A.insert(rowIndex, c.aY_Index) = lt01;
-                        A.insert(rowIndex, c.bY_Index) = -lt01;
-                        rowIndex++;
-                        
-                        /*
-                         x2(c.aY_Index) =
-                         + lt10*vertexVectorX(c.aX_Index)
-                         - lt10*vertexVectorX(c.bX_Index)
-                         + lt11*vertexVectorX(c.aY_Index)
-                         + (1-lt11)*vertexVectorX(c.bY_Index);
-                         */
-                        A.insert(rowIndex, c.aX_Index) = lt10;
-                        A.insert(rowIndex, c.bX_Index) = -lt10;
-                        A.insert(rowIndex, c.aY_Index) = lt11-w;
-                        A.insert(rowIndex, c.bY_Index) = w-lt11;
-                        rowIndex++;
-                        
-                        /*
-                         x2(c.bX_Index) = 
-                         (1-lt00)*vertexVectorX(c.aX_Index)
-                         + lt00*vertexVectorX(c.bX_Index)
-                         - lt01*vertexVectorX(c.aY_Index)
-                         + lt01*vertexVectorX(c.bY_Index);
-                         */
-                        /*
-                        A.insert(rowIndex, c.aX_Index) = w-lt00;
-                        A.insert(rowIndex, c.bX_Index) = lt00-w;
-                        A.insert(rowIndex, c.aY_Index) = -lt01;
-                        A.insert(rowIndex, c.bY_Index) = lt01;
-                        rowIndex++;
-                        
-                        /*
-                         x2(c.bY_Index) =
-                         - lt10*vertexVectorX(c.aX_Index)
-                         + lt10*vertexVectorX(c.bX_Index)
-                         + (1-lt11)*vertexVectorX(c.aY_Index)
-                         + lt11*vertexVectorX(c.bY_Index);
-                         */
-                        /*
-                        A.insert(rowIndex, c.aX_Index) = -lt10;
-                        A.insert(rowIndex, c.bX_Index) = lt10;
-                        A.insert(rowIndex, c.aY_Index) = w-lt11;
-                        A.insert(rowIndex, c.bY_Index) = lt11-w;
-                        rowIndex++;
-                         */
-                        
-                    }
-                    else //c.a = e.a
-                    {
-                        //printf("\n c.a = e.a (top right)");
-                        
-                        /*
-                         x2(c.aX_Index) = vertexVectorX(edgeI.bX_Index)
-                         + lt00*vertexVectorX(c.aX_Index)
-                         - lt00*vertexVectorX(c.bX_Index)
-                         + lt01*vertexVectorX(c.aY_Index)
-                         - lt01*vertexVectorX(c.bY_Index);
-                         */
-                        A.insert(rowIndex, edgeI.bX_Index) = w;
-                        A.insert(rowIndex, c.aX_Index) = lt00-w;
-                        A.insert(rowIndex, c.bX_Index) = -lt00;
-                        A.insert(rowIndex, c.aY_Index) = lt01;
-                        A.insert(rowIndex, c.bY_Index) = -lt01;
-                        rowIndex++;
-                        
-                        /*
-                         x2(c.aY_Index) = vertexVectorX(edgeI.bY_Index)
-                         + lt10*vertexVectorX(c.aX_Index)
-                         - lt10*vertexVectorX(c.bX_Index)
-                         + lt11*vertexVectorX(c.aY_Index)
-                         - lt11*vertexVectorX(c.bY_Index);
-                         */
-                        A.insert(rowIndex, edgeI.bY_Index) = w;
-                        A.insert(rowIndex, c.aX_Index) = lt10;
-                        A.insert(rowIndex, c.bX_Index) = -lt10;
-                        A.insert(rowIndex, c.aY_Index) = lt11-w;
-                        A.insert(rowIndex, c.bY_Index) = -lt11;
-                        rowIndex++;
-                        
-                        /*
-                         x2(edgeI.bX_Index) = 
-                         (1-lt00)*vertexVectorX(c.aX_Index)
-                         + lt00*vertexVectorX(c.bX_Index)
-                         - lt01*vertexVectorX(c.aY_Index)
-                         + lt01*vertexVectorX(c.bY_Index);
-                         */
-                        /*
-                        A.insert(rowIndex, edgeI.bX_Index) = -w;
-                        A.insert(rowIndex, c.aX_Index) = w-lt00;
-                        A.insert(rowIndex, c.bX_Index) = lt00;
-                        A.insert(rowIndex, c.aY_Index) = -lt01;
-                        A.insert(rowIndex, c.bY_Index) = lt01;
-                        rowIndex++;
-                        
-                        /*
-                         x2(edgeI.bY_Index) =
-                         - lt10*vertexVectorX(c.aX_Index)
-                         + lt10*vertexVectorX(c.bX_Index)
-                         + (1-lt11)*vertexVectorX(c.aY_Index)
-                         + lt11*vertexVectorX(c.bY_Index);
-                         */
-                        /*
-                        A.insert(rowIndex, edgeI.bY_Index) = -w;
-                        A.insert(rowIndex, c.aX_Index) = -lt10;
-                        A.insert(rowIndex, c.bX_Index) = lt10;
-                        A.insert(rowIndex, c.aY_Index) = w-lt11;
-                        A.insert(rowIndex, c.bY_Index) = lt11;
-                        rowIndex++;
-                         */
-                    }
-                }
-                else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index) //  c.b = e.a
-                {
-                    //printf("\n c.b = e.a (bottom right)");
-                    /*
-                     x2(c.bX_Index) = vertexVectorX(edgeI.bX_Index)
-                     + lt00*vertexVectorX(c.aX_Index)
-                     - lt00*vertexVectorX(c.bX_Index)
-                     + lt01*vertexVectorX(c.aY_Index)
-                     - lt01*vertexVectorX(c.bY_Index);
-                     */
-                    A.insert(rowIndex, edgeI.bX_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = lt00;
-                    A.insert(rowIndex, c.bX_Index) = -lt00-w;
-                    A.insert(rowIndex, c.aY_Index) = lt01;
-                    A.insert(rowIndex, c.bY_Index) = -lt01;
-                    rowIndex++;
-                    
-                    /*
-                     x2(c.bY_Index) = vertexVectorX(edgeI.bY_Index)
-                     + lt10*vertexVectorX(c.aX_Index)
-                     - lt10*vertexVectorX(c.bX_Index)
-                     + lt11*vertexVectorX(c.aY_Index)
-                     - lt11*vertexVectorX(c.bY_Index);
-                     */
-                    A.insert(rowIndex, edgeI.bY_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = lt10;
-                    A.insert(rowIndex, c.bX_Index) = -lt10;
-                    A.insert(rowIndex, c.aY_Index) = lt11;
-                    A.insert(rowIndex, c.bY_Index) = -lt11-w;
-                    rowIndex++;
-                    
-                    /*
-                     x2(edgeI.bX_Index) =
-                     - lt00*vertexVectorX(c.aX_Index)
-                     + (1+lt00)*vertexVectorX(c.bX_Index)
-                     - lt01*vertexVectorX(c.aY_Index)
-                     + lt01*vertexVectorX(c.bY_Index);
-                     */
-                    /*
-                    A.insert(rowIndex, edgeI.bX_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = -lt00;
-                    A.insert(rowIndex, c.bX_Index) = w+lt00;
-                    A.insert(rowIndex, c.aY_Index) = -lt01;
-                    A.insert(rowIndex, c.bY_Index) = lt01;
-                    rowIndex++;
-                    
-                    /*
-                     x2(edgeI.bY_Index) =
-                     - lt10*vertexVectorX(c.aX_Index)
-                     + lt10*vertexVectorX(c.bX_Index)
-                     - lt11*vertexVectorX(c.aY_Index)
-                     + (1+lt11)*vertexVectorX(c.bY_Index);
-                     */
-                    /*
-                    A.insert(rowIndex, edgeI.bY_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = -lt10;
-                    A.insert(rowIndex, c.bX_Index) = lt10;
-                    A.insert(rowIndex, c.aY_Index) = -lt11;
-                    A.insert(rowIndex, c.bY_Index) = w+lt11;
-                    rowIndex++;
-                    */
-                }
-                else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index) //  c.a = e.b
-                {
-                   // printf("\n c.a = e.b (top left)");
-
-                    /*
-                     x2(edgeI.aX_Index) = 
-                     (1+lt00)*vertexVectorX(c.aX_Index)
-                     - lt00*vertexVectorX(c.bX_Index)
-                     + lt01*vertexVectorX(c.aY_Index)
-                     - lt01*vertexVectorX(c.bY_Index);
-                     */
-                    A.insert(rowIndex, edgeI.aX_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = w+lt00;
-                    A.insert(rowIndex, c.bX_Index) = -lt00;
-                    A.insert(rowIndex, c.aY_Index) = +lt01;
-                    A.insert(rowIndex, c.bY_Index) = -lt01;
-                    rowIndex++;
-                    
-                    /*
-                     x2(edgeI.aY_Index) =
-                     + lt10*vertexVectorX(c.aX_Index)
-                     - lt10*vertexVectorX(c.bX_Index)
-                     + (1+lt11)*vertexVectorX(c.aY_Index)
-                     - lt11*vertexVectorX(c.bY_Index);
-                     */
-                    A.insert(rowIndex, edgeI.aY_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = lt10;
-                    A.insert(rowIndex, c.bX_Index) = -lt10;
-                    A.insert(rowIndex, c.aY_Index) = w+lt11;
-                    A.insert(rowIndex, c.bY_Index) = -lt11;
-                    rowIndex++;
-                    
-                    /*
-                     x2(c.aX_Index) = 
-                       vertexVectorX(edgeI.aX_Index)
-                     - lt00*vertexVectorX(c.aX_Index)
-                     + lt00*vertexVectorX(c.bX_Index)
-                     - lt01*vertexVectorX(c.aY_Index)
-                     + lt01*vertexVectorX(c.bY_Index);
-                     */
-                    /*
-                    A.insert(rowIndex, edgeI.aX_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = -lt00 - w;
-                    A.insert(rowIndex, c.bX_Index) = lt00;
-                    A.insert(rowIndex, c.aY_Index) = -lt01;
-                    A.insert(rowIndex, c.bY_Index) = lt01;
-                    rowIndex++;
-                    
-                    /*
-                     x2(c.aY_Index) = vertexVectorX(edgeI.aY_Index)
-                     - lt10*vertexVectorX(c.aX_Index)
-                     + lt10*vertexVectorX(c.bX_Index)
-                     - lt11*vertexVectorX(c.aY_Index)
-                     + lt11*vertexVectorX(c.bY_Index);
-                     */
-                    /*
-                    A.insert(rowIndex, edgeI.aY_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = -lt10;
-                    A.insert(rowIndex, c.bX_Index) = lt10;
-                    A.insert(rowIndex, c.aY_Index) = -lt11 - w;
-                    A.insert(rowIndex, c.bY_Index) = lt11;
-                    rowIndex++;
-                     */
-                    
-                }
-                else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index) //  c.b = e.b
-                {
-                    //printf("\n c.b = e.b (bottom left)");
-                    
-                    /*
-                     x2(edgeI.aX_Index) =
-                     + lt00*vertexVectorX(c.aX_Index)
-                     + (1-lt00)*vertexVectorX(c.bX_Index)
-                     + lt01*vertexVectorX(c.aY_Index)
-                     - lt01*vertexVectorX(c.bY_Index);
-                     */
-                    A.insert(rowIndex, edgeI.aX_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = lt00;
-                    A.insert(rowIndex, c.bX_Index) = w-lt00;
-                    A.insert(rowIndex, c.aY_Index) = lt01;
-                    A.insert(rowIndex, c.bY_Index) = -lt01;
-                    rowIndex++;
-                    
-                    /*
-                     x2(edgeI.aY_Index) =
-                     + lt10*vertexVectorX(c.aX_Index)
-                     - lt10*vertexVectorX(c.bX_Index)
-                     + lt11*vertexVectorX(c.aY_Index)
-                     + (1-lt11)*vertexVectorX(c.bY_Index);
-                     */
-                    A.insert(rowIndex, edgeI.aY_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = lt10;
-                    A.insert(rowIndex, c.bX_Index) = -lt10;
-                    A.insert(rowIndex, c.aY_Index) = lt11;
-                    A.insert(rowIndex, c.bY_Index) = w-lt11;
-                    rowIndex++;
-                    
-                    /*
-                     x2(c.bX_Index) = vertexVectorX(edgeI.aX_Index)
-                     - lt00*vertexVectorX(c.aX_Index)
-                     + lt00*vertexVectorX(c.bX_Index)
-                     - lt01*vertexVectorX(c.aY_Index)
-                     + lt01*vertexVectorX(c.bY_Index);
-                     */
-                    /*
-                    A.insert(rowIndex, edgeI.aX_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = -lt00;
-                    A.insert(rowIndex, c.bX_Index) = lt00-w;
-                    A.insert(rowIndex, c.aY_Index) = -lt01;
-                    A.insert(rowIndex, c.bY_Index) = lt01;
-                    rowIndex++;
-                    
-                    /*
-                     x2(c.bY_Index) = vertexVectorX(edgeI.aY_Index)
-                     - lt10*vertexVectorX(c.aX_Index)
-                     + lt10*vertexVectorX(c.bX_Index)
-                     - lt11*vertexVectorX(c.aY_Index)
-                     + lt11*vertexVectorX(c.bY_Index);
-                     */
-                    /*
-                    A.insert(rowIndex, edgeI.aY_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = -lt10;
-                    A.insert(rowIndex, c.bX_Index) = lt10;
-                    A.insert(rowIndex, c.aY_Index) = -lt11;
-                    A.insert(rowIndex, c.bY_Index) = lt11-w;
-                    rowIndex++;
-                     */
-                }
-                else{ // edges not connected
-                    //printf("\n edges not connected");
-                    /*
-                     x2(edgeI.aX_Index) = vertexVectorX(edgeI.bX_Index)
-                     + lt00*vertexVectorX(c.aX_Index)
-                     - lt00*vertexVectorX(c.bX_Index)
-                     + lt01*vertexVectorX(c.aY_Index)
-                     - lt01*vertexVectorX(c.bY_Index);
-                     */
-                    A.insert(rowIndex, edgeI.aX_Index) = -w;
-                    A.insert(rowIndex, edgeI.bX_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = lt00;
-                    A.insert(rowIndex, c.bX_Index) = -lt00;
-                    A.insert(rowIndex, c.aY_Index) = lt01;
-                    A.insert(rowIndex, c.bY_Index) = -lt01;
-                    rowIndex++;
-                    /*
-                     x2(edgeI.aY_Index) = vertexVectorX(edgeI.bY_Index)
-                     + lt10*vertexVectorX(c.aX_Index)
-                     - lt10*vertexVectorX(c.bX_Index)
-                     + lt11*vertexVectorX(c.aY_Index)
-                     - lt11*vertexVectorX(c.bY_Index);
-                     */
-                    A.insert(rowIndex, edgeI.aY_Index) = -w;
-                    A.insert(rowIndex, edgeI.bY_Index) = w;
-                    A.insert(rowIndex, c.aX_Index) = lt10;
-                    A.insert(rowIndex, c.bX_Index) = -lt10;
-                    A.insert(rowIndex, c.aY_Index) = lt11;
-                    A.insert(rowIndex, c.bY_Index) = -lt11;
-                    rowIndex++;
-                    /*
-                     x2(edgeI.bX_Index) = vertexVectorX(edgeI.aX_Index)
-                     - lt00*vertexVectorX(c.aX_Index)
-                     + lt00*vertexVectorX(c.bX_Index)
-                     - lt01*vertexVectorX(c.aY_Index)
-                     + lt01*vertexVectorX(c.bY_Index);
-                     */
-                    /*
-                    A.insert(rowIndex, edgeI.aX_Index) = w;
-                    A.insert(rowIndex, edgeI.bX_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = -lt00;
-                    A.insert(rowIndex, c.bX_Index) = lt00;
-                    A.insert(rowIndex, c.aY_Index) = -lt01;
-                    A.insert(rowIndex, c.bY_Index) = lt01;
-                    rowIndex++;
-                    /*
-                     x2(edgeI.bY_Index) = vertexVectorX(edgeI.aY_Index)
-                     - lt10*vertexVectorX(c.aX_Index)
-                     + lt10*vertexVectorX(c.bX_Index)
-                     - lt11*vertexVectorX(c.aY_Index)
-                     + lt11*vertexVectorX(c.bY_Index);
-                     */
-                    /*
-                    A.insert(rowIndex, edgeI.aY_Index) = w;
-                    A.insert(rowIndex, edgeI.bY_Index) = -w;
-                    A.insert(rowIndex, c.aX_Index) = -lt10;
-                    A.insert(rowIndex, c.bX_Index) = lt10;
-                    A.insert(rowIndex, c.aY_Index) = -lt11;
-                    A.insert(rowIndex, c.bY_Index) = lt11;
-                    rowIndex++;
-                     */
-                }
-                
-                
-                
-                /*
-                 //test linear scaling
-                 // my own scaling (pure linear scaling using original matrix T)
-                 
-                 double lt00 = T(0,0);
-                 double lt01 = T(0,1);
-                 double lt10 = T(1,0);
-                 double lt11 = T(1,1);
-                 
-                 MeshEdge edgeI = p.patchEdges[edgeCounter];
-                 double xScale = 1.0*newWidth/nOriginal;
-                 double yScale = 1.0*newHeight/mOriginal;
-                 
-                 if(c.aX_Index == edgeI.aX_Index && c.aY_Index == edgeI.aY_Index) //2 cases (c=e or ca=ea (top))
-                 {
-                 if (c.bX_Index == edgeI.bX_Index
-                 && c.bY_Index == edgeI.bY_Index) //c = e
-                 {
-                 printf("\n c = e (same edge)");
-                 
-                 x2(c.aX_Index) = xScale*((1-lt00)*vertexVectorX(c.bX_Index)
-                 + lt00*vertexVectorX(c.aX_Index)
-                 + lt01*vertexVectorX(c.aY_Index)
-                 - lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(c.aY_Index) = yScale*((1-lt11)*vertexVectorX(c.bY_Index)
-                 + lt10*vertexVectorX(c.aX_Index)
-                 - lt10*vertexVectorX(c.bX_Index)
-                 + lt11*vertexVectorX(c.aY_Index));
-                 
-                 x2(c.bX_Index) = xScale*((1-lt00)*vertexVectorX(c.aX_Index)
-                 + lt00*vertexVectorX(c.bX_Index)
-                 - lt01*vertexVectorX(c.aY_Index)
-                 + lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(c.bY_Index) = yScale*((1-lt11)*vertexVectorX(c.aY_Index)
-                 - lt10*vertexVectorX(c.aX_Index)
-                 + lt10*vertexVectorX(c.bX_Index)
-                 + lt11*vertexVectorX(c.bY_Index));
-                 }
-                 else //c.a = e.a
-                 {
-                 printf("\n c.a = e.a (top right)");
-                 x2(c.aX_Index) = xScale*(vertexVectorX(edgeI.bX_Index)
-                 + lt00*vertexVectorX(c.aX_Index)
-                 - lt00*vertexVectorX(c.bX_Index)
-                 + lt01*vertexVectorX(c.aY_Index)
-                 - lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(c.aY_Index) = yScale*(vertexVectorX(edgeI.bY_Index)
-                 + lt10*vertexVectorX(c.aX_Index)
-                 - lt10*vertexVectorX(c.bX_Index)
-                 + lt11*vertexVectorX(c.aY_Index)
-                 - lt11*vertexVectorX(c.bY_Index));
-                 
-                 x2(edgeI.bX_Index) = xScale*((1-lt00)*vertexVectorX(c.aX_Index)
-                 + lt00*vertexVectorX(c.bX_Index)
-                 - lt01*vertexVectorX(c.aY_Index)
-                 + lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(edgeI.bY_Index) = yScale*((1-lt11)*vertexVectorX(c.aY_Index)
-                 - lt10*vertexVectorX(c.aX_Index)
-                 + lt10*vertexVectorX(c.bX_Index)
-                 + lt11*vertexVectorX(c.bY_Index));
-                 }
-                 }
-                 else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index) //  c.b = e.a
-                 {
-                 printf("\n c.b = e.a (bottom right)");
-                 x2(c.bX_Index) = xScale*(vertexVectorX(edgeI.bX_Index)
-                 + lt00*vertexVectorX(c.aX_Index)
-                 - lt00*vertexVectorX(c.bX_Index)
-                 + lt01*vertexVectorX(c.aY_Index)
-                 - lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(c.bY_Index) = yScale*(vertexVectorX(edgeI.bY_Index)
-                 + lt10*vertexVectorX(c.aX_Index)
-                 - lt10*vertexVectorX(c.bX_Index)
-                 + lt11*vertexVectorX(c.aY_Index)
-                 - lt11*vertexVectorX(c.bY_Index));
-                 
-                 x2(edgeI.bX_Index) = xScale*((1+lt00)*vertexVectorX(c.bX_Index)
-                 - lt00*vertexVectorX(c.aX_Index)
-                 - lt01*vertexVectorX(c.aY_Index)
-                 + lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(edgeI.bY_Index) = yScale*((1+lt11)*vertexVectorX(c.bY_Index)
-                 - lt10*vertexVectorX(c.aX_Index)
-                 + lt10*vertexVectorX(c.bX_Index)
-                 - lt11*vertexVectorX(c.aY_Index));
-                 }
-                 else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index) //  c.a = e.b
-                 {
-                 printf("\n c.a = e.b (top left)");
-                 x2(edgeI.aX_Index) = xScale*((1+lt00)*vertexVectorX(c.aX_Index)
-                 - lt00*vertexVectorX(c.bX_Index)
-                 + lt01*vertexVectorX(c.aY_Index)
-                 - lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(edgeI.aY_Index) = yScale*((1+lt11)*vertexVectorX(c.aY_Index)
-                 + lt10*vertexVectorX(c.aX_Index)
-                 - lt10*vertexVectorX(c.bX_Index)
-                 - lt11*vertexVectorX(c.bY_Index));
-                 
-                 x2(c.aX_Index) = xScale*(vertexVectorX(edgeI.aX_Index)
-                 - lt00*vertexVectorX(c.aX_Index)
-                 + lt00*vertexVectorX(c.bX_Index)
-                 - lt01*vertexVectorX(c.aY_Index)
-                 + lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(c.aY_Index) = yScale*(vertexVectorX(edgeI.aY_Index)
-                 - lt10*vertexVectorX(c.aX_Index)
-                 + lt10*vertexVectorX(c.bX_Index)
-                 - lt11*vertexVectorX(c.aY_Index)
-                 + lt11*vertexVectorX(c.bY_Index));
-                 }
-                 else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index) //  c.b = e.b
-                 {
-                 printf("\n c.b = e.b (bottom left)");
-                 x2(edgeI.aX_Index) = xScale*((1-lt00)*vertexVectorX(c.bX_Index)
-                 + lt00*vertexVectorX(c.aX_Index)
-                 + lt01*vertexVectorX(c.aY_Index)
-                 - lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(edgeI.aY_Index) = yScale*((1-lt11)*vertexVectorX(c.bY_Index)
-                 + lt10*vertexVectorX(c.aX_Index)
-                 - lt10*vertexVectorX(c.bX_Index)
-                 + lt11*vertexVectorX(c.aY_Index));
-                 
-                 x2(c.bX_Index) = xScale*(vertexVectorX(edgeI.aX_Index)
-                 - lt00*vertexVectorX(c.aX_Index)
-                 + lt00*vertexVectorX(c.bX_Index)
-                 - lt01*vertexVectorX(c.aY_Index)
-                 + lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(c.bY_Index) = yScale*(vertexVectorX(edgeI.aY_Index)
-                 - lt10*vertexVectorX(c.aX_Index)
-                 + lt10*vertexVectorX(c.bX_Index)
-                 - lt11*vertexVectorX(c.aY_Index)
-                 + lt11*vertexVectorX(c.bY_Index));
-                 }
-                 else{ // edges not connected
-                 //printf("\n edges not connected");
-                 x2(edgeI.aX_Index) = xScale*(vertexVectorX(edgeI.bX_Index)
-                 + lt00*vertexVectorX(c.aX_Index)
-                 - lt00*vertexVectorX(c.bX_Index)
-                 + lt01*vertexVectorX(c.aY_Index)
-                 - lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(edgeI.aY_Index) = yScale*(vertexVectorX(edgeI.bY_Index)
-                 + lt10*vertexVectorX(c.aX_Index)
-                 - lt10*vertexVectorX(c.bX_Index)
-                 + lt11*vertexVectorX(c.aY_Index)
-                 - lt11*vertexVectorX(c.bY_Index));
-                 
-                 x2(edgeI.bX_Index) = xScale*(vertexVectorX(edgeI.aX_Index)
-                 - lt00*vertexVectorX(c.aX_Index)
-                 + lt00*vertexVectorX(c.bX_Index)
-                 - lt01*vertexVectorX(c.aY_Index)
-                 + lt01*vertexVectorX(c.bY_Index));
-                 
-                 x2(edgeI.bY_Index) = yScale*(vertexVectorX(edgeI.aY_Index)
-                 - lt10*vertexVectorX(c.aX_Index)
-                 + lt10*vertexVectorX(c.bX_Index)
-                 - lt11*vertexVectorX(c.aY_Index)
-                 + lt11*vertexVectorX(c.bY_Index));
-                 }
-                 */
-            }
-        }
-    }
-    
-    
-    printf("\n compute grid orientation terms");
-    std::vector<MeshQuad>::iterator quadIter = meshQuads.begin();
-    
-    for(int x=0; x<numXVertices-1; x++)
-    {
-        for(int y=0; y<numYVertices-1; y++,quadIter++)
-        {
-            MeshQuad quad = *quadIter;
-            
-            if(y < numYVertices-2 && x < numXVertices-2)
-            {
-                //x2(quad.tlY_Index) = x2(quad.trY_Index);
-                A.insert(rowIndex, quad.tlY_Index) = 1;
-                A.insert(rowIndex, quad.trY_Index) = -1;
-                rowIndex++;
-                
-                //x2(quad.tlX_Index) = x2(quad.blX_Index);
-                A.insert(rowIndex, quad.tlX_Index) = 1;
-                A.insert(rowIndex, quad.blX_Index) = -1;
-                rowIndex++;
-            }
-            else{
-                // x2(quad.tlY_Index) = x2(quad.trY_Index);
-                A.insert(rowIndex, quad.tlY_Index) = 1;
-                A.insert(rowIndex, quad.trY_Index) = -1;
-                rowIndex++;
-                
-                // x2(quad.tlX_Index) = x2(quad.blX_Index);
-                A.insert(rowIndex, quad.tlX_Index) = 1;
-                A.insert(rowIndex, quad.blX_Index) = -1;
-                rowIndex++;
-                
-                // x2(quad.trX_Index) = x2(quad.brX_Index);
-                A.insert(rowIndex, quad.trX_Index) = 1;
-                A.insert(rowIndex, quad.brX_Index) = -1;
-                rowIndex++;
-                
-                // x2(quad.blY_Index) = x2(quad.brY_Index);
-                A.insert(rowIndex, quad.blY_Index) = 1;
-                A.insert(rowIndex, quad.brY_Index) = -1;
-                rowIndex++;
-            }
-        }
-    }
-     
-    
-    printf("\n compute boundary condition terms");
-    std::vector<int>::iterator botIter = bottomBoundaryIndices.begin();
-    for (std::vector<int>::iterator topIter = topBoundaryIndices.begin(); topIter!=topBoundaryIndices.end(); topIter++,botIter++)
-    {
-        //we could precompute these
-        //x2(*topIter) = 0;
-        A.insert(rowIndex, *topIter) = w2;
-        rowIndex++;
-        
-        //x2(*botIter) = newHeight;
-        A.insert(rowIndex, *botIter) = w2;
-        b(rowIndex) = w2*newHeight;
-        rowIndex++;
-    }
-    
-    std::vector<int>::iterator leftIter = leftBoundaryIndices.begin();
-    for (std::vector<int>::iterator rightIter = rightBoundaryIndices.begin(); rightIter!=rightBoundaryIndices.end(); rightIter++,leftIter++)
-    {
-        //we could precompute these
-        //x2(*leftIter) = 0;
-        A.insert(rowIndex, *leftIter) = w2;
-        rowIndex++;
-        
-        //x2(*rightIter) = newWidth;
-        A.insert(rowIndex, *rightIter) = w2;
-        b(rowIndex) = w2*newWidth;
-        rowIndex++;
-    }
-    
-    printf("\ntotal rows = %d\n",rowIndex);
-    
-    Eigen::BiCGSTAB<Eigen::SparseMatrix<double> > cg;
-    Eigen::SparseMatrix<double> AT = A.transpose();
-    Eigen::SparseMatrix<double> ATA = AT*A;
-    Eigen::VectorXd ATb = AT*b;
-    cg.compute(ATA);
-    //cg.setTolerance(0.5);
-    x2 = cg.solveWithGuess(ATb,x2);
-    std::cout << "#iterations:     " << cg.iterations() << std::endl;
-    std::cout << "estimated error: " << cg.error()      << std::endl;
-    
-    
-    gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
-    vertexCounter = 0;
-    for( int x = 0; x < numXVertices; ++x ) {
-        for( int y = 0; y < numYVertices; ++y ) {
-            float vX = x2(vertexCounter);
-            float vY = x2((numVertices + vertexCounter));
-            iter.setPosition(vX, vY, 0.0f );
-            ++iter;
-            vertexCounter++;
-        }
-    }
-    
+    return rowIndex;
 }
+
 
 void MeshWarpRetargetter::testEnergyTerms(int newWidth, int newHeight)
 {
     /////                               TESTING ONLY!!!
+    
+    /*
+     printf("\n compute transformation terms");
+     
+     //compute transformation terms
+     for (std::vector<MeshPatch>::iterator iter = meshPatches.begin(); iter != meshPatches.end(); iter++) {
+     MeshPatch p = *iter;
+     
+     if(p.patchEdges.size() > 0)
+     {
+     MeshEdge c = p.c;
+     double w = w1*p.p.normalScore; //saliency weight
+     int edgeCounter = 0;
+     for (std::vector<Eigen::Matrix2d>::iterator iter = p.transformation.begin(); iter != p.transformation.end(); iter++,edgeCounter++) {
+     
+     Eigen::Matrix2d T = *iter;
+     // transformation equations
+     // (we could compute this first transformation during preprocessing)
+     
+     double s = w*T(0,0);
+     double r = w*T(0,1);
+     MeshEdge edgeI = p.patchEdges[edgeCounter];
+     
+     // we need to account for edges that share vertices with the patch representative edge
+     if(c.aX_Index == edgeI.aX_Index && c.aY_Index == edgeI.aY_Index) //2 cases (c=e or ca=ea (top))
+     {
+     if (c.bX_Index == edgeI.bX_Index
+     && c.bY_Index == edgeI.bY_Index)
+     //  c = e
+     {
+     //x2(c.aX_Index) = (1-s)*x2(c.bX_Index) + s*x2(c.aX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+     A.insert(rowIndex, c.aX_Index) = s-w;
+     A.insert(rowIndex, c.bX_Index) = w-s;
+     A.insert(rowIndex, c.aY_Index) = r;
+     A.insert(rowIndex, c.bY_Index) = -r;
+     rowIndex++;
+     
+     //x2(c.aY_Index) = (1-s)*x2(c.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index);
+     A.insert(rowIndex, c.aX_Index) = -r;
+     A.insert(rowIndex, c.bX_Index) = r;
+     A.insert(rowIndex, c.aY_Index) = s-w;
+     A.insert(rowIndex, c.bY_Index) = w-s;
+     rowIndex++;
+     }
+     else                                     // c.a = e.a
+     {
+     //x2(c.aX_Index) = x2(edgeI.bX_Index) + s*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+     A.insert(rowIndex, edgeI.bX_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = s-w;
+     A.insert(rowIndex, c.bX_Index) = -s;
+     A.insert(rowIndex, c.aY_Index) = r;
+     A.insert(rowIndex, c.bY_Index) = -r;
+     rowIndex++;
+     
+     //x2(c.aY_Index) = x2(edgeI.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index) - s*x2(c.bY_Index);
+     A.insert(rowIndex, edgeI.bY_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = -r;
+     A.insert(rowIndex, c.bX_Index) = r;
+     A.insert(rowIndex, c.aY_Index) = s-w;
+     A.insert(rowIndex, c.bY_Index) = -s;
+     rowIndex++;
+     }
+     }
+     else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index)
+     //  c.b = e.a
+     {
+     //printf("\n c.b = e.a (bottom right)");
+     //x2(c.bX_Index) = x2(edgeI.bX_Index) + s*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+     A.insert(rowIndex, edgeI.bX_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = s;
+     A.insert(rowIndex, c.bX_Index) = -w-s;
+     A.insert(rowIndex, c.aY_Index) = r;
+     A.insert(rowIndex, c.bY_Index) = -r;
+     rowIndex++;
+     
+     //x2(c.bY_Index) = x2(edgeI.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index) - s*x2(c.bY_Index);
+     A.insert(rowIndex, edgeI.bY_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = -r;
+     A.insert(rowIndex, c.bX_Index) = r;
+     A.insert(rowIndex, c.aY_Index) = s;
+     A.insert(rowIndex, c.bY_Index) = -w-s;
+     rowIndex++;
+     
+     }
+     else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index)
+     //  c.a = e.b
+     {
+     //printf("\n c.a = e.b (top left)");
+     //x2(edgeI.aX_Index) = (1+s)*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+     A.insert(rowIndex, edgeI.aX_Index) = -w;
+     A.insert(rowIndex, c.aX_Index) = w+s;
+     A.insert(rowIndex, c.bX_Index) = -s;
+     A.insert(rowIndex, c.aY_Index) = r;
+     A.insert(rowIndex, c.bY_Index) = -r;
+     rowIndex++;
+     
+     //x2(edgeI.aY_Index) = (1+s)*x2(c.aY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) - s*x2(c.bY_Index);
+     A.insert(rowIndex, edgeI.aY_Index) = -w;
+     A.insert(rowIndex, c.aX_Index) = -r;
+     A.insert(rowIndex, c.bX_Index) = r;
+     A.insert(rowIndex, c.aY_Index) = w+s;
+     A.insert(rowIndex, c.bY_Index) = -s;
+     rowIndex++;
+     }
+     else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index)
+     //  c.b = e.b
+     {
+     //printf("\n c.b = e.b (bottom left)");
+     //x2(edgeI.aX_Index) = (1-s)*x2(c.bX_Index) + s*x2(c.aX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+     A.insert(rowIndex, edgeI.aX_Index) = -w;
+     A.insert(rowIndex, c.aX_Index) = s;
+     A.insert(rowIndex, c.bX_Index) = w-s;
+     A.insert(rowIndex, c.aY_Index) = r;
+     A.insert(rowIndex, c.bY_Index) = -r;
+     rowIndex++;
+     
+     //x2(edgeI.aY_Index) = (1-s)*x2(c.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index);
+     A.insert(rowIndex, edgeI.aY_Index) = -w;
+     A.insert(rowIndex, c.aX_Index) = -r;
+     A.insert(rowIndex, c.bX_Index) = r;
+     A.insert(rowIndex, c.aY_Index) = s;
+     A.insert(rowIndex, c.bY_Index) = w-s;
+     rowIndex++;
+     }
+     else{                                       // edges not connected
+     //printf("\n edges not connected");
+     //x2(edgeI.aX_Index) = x2(edgeI.bX_Index) + s*x2(c.aX_Index) - s*x2(c.bX_Index) + r*x2(c.aY_Index) - r*x2(c.bY_Index);
+     A.insert(rowIndex, edgeI.aX_Index) = -w;
+     A.insert(rowIndex, edgeI.bX_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = s;
+     A.insert(rowIndex, c.bX_Index) = -s;
+     A.insert(rowIndex, c.aY_Index) = r;
+     A.insert(rowIndex, c.bY_Index) = -r;
+     rowIndex++;
+     
+     //x2(edgeI.aY_Index) = x2(edgeI.bY_Index) - r*x2(c.aX_Index) + r*x2(c.bX_Index) + s*x2(c.aY_Index) - s*x2(c.bY_Index);
+     A.insert(rowIndex, edgeI.aY_Index) = -w;
+     A.insert(rowIndex, edgeI.bY_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = -r;
+     A.insert(rowIndex, c.bX_Index) = r;
+     A.insert(rowIndex, c.aY_Index) = s;
+     A.insert(rowIndex, c.bY_Index) = -s;
+     rowIndex++;
+     }
+     }
+     }
+     }
+     
+     printf("\n nb of transformation rows = %d",rowIndex);
+     
+     for (std::vector<MeshPatch>::iterator iter = meshPatches.begin(); iter != meshPatches.end(); iter++) {
+     MeshPatch p = *iter;
+     
+     if(p.patchEdges.size() > 0)
+     {
+     MeshEdge c = p.c;
+     int edgeCounter = 0;
+     for (std::vector<Eigen::Matrix2d>::iterator iter = p.transformation.begin(); iter != p.transformation.end(); iter++,edgeCounter++) {
+     
+     Eigen::Matrix2d T = *iter;
+     Eigen::Matrix2d LT = computeLinearTransformation(T,newWidth,newHeight,nOriginal,mOriginal);
+     
+     int w = (1-w1) * p.p.normalScore;
+     // Papers equations
+     double lt00 = w*LT(0,0);
+     double lt01 = w*LT(0,1);
+     double lt10 = w*LT(1,0);
+     double lt11 = w*LT(1,1);
+     
+     MeshEdge edgeI = p.patchEdges[edgeCounter];
+     
+     if(c.aX_Index == edgeI.aX_Index && c.aY_Index == edgeI.aY_Index) //2 cases (c=e or ca=ea (top))
+     {
+     if (c.bX_Index == edgeI.bX_Index
+     && c.bY_Index == edgeI.bY_Index) //c = e
+     {
+     //printf("\n c = e (same edge)");
+     A.insert(rowIndex, c.aX_Index) = lt00-w;
+     A.insert(rowIndex, c.bX_Index) = w-lt00;
+     A.insert(rowIndex, c.aY_Index) = lt01;
+     A.insert(rowIndex, c.bY_Index) = -lt01;
+     rowIndex++;
+     
+     A.insert(rowIndex, c.aX_Index) = lt10;
+     A.insert(rowIndex, c.bX_Index) = -lt10;
+     A.insert(rowIndex, c.aY_Index) = lt11-w;
+     A.insert(rowIndex, c.bY_Index) = w-lt11;
+     rowIndex++;
+     
+     }
+     else //c.a = e.a
+     {
+     
+     A.insert(rowIndex, edgeI.bX_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = lt00-w;
+     A.insert(rowIndex, c.bX_Index) = -lt00;
+     A.insert(rowIndex, c.aY_Index) = lt01;
+     A.insert(rowIndex, c.bY_Index) = -lt01;
+     rowIndex++;
+     
+     A.insert(rowIndex, edgeI.bY_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = lt10;
+     A.insert(rowIndex, c.bX_Index) = -lt10;
+     A.insert(rowIndex, c.aY_Index) = lt11-w;
+     A.insert(rowIndex, c.bY_Index) = -lt11;
+     rowIndex++;
+     }
+     }
+     else if(c.bX_Index == edgeI.aX_Index && c.bY_Index == edgeI.aY_Index) //  c.b = e.a
+     {
+     //printf("\n c.b = e.a (bottom right)");
+     
+     A.insert(rowIndex, edgeI.bX_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = lt00;
+     A.insert(rowIndex, c.bX_Index) = -lt00-w;
+     A.insert(rowIndex, c.aY_Index) = lt01;
+     A.insert(rowIndex, c.bY_Index) = -lt01;
+     rowIndex++;
+     
+     A.insert(rowIndex, edgeI.bY_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = lt10;
+     A.insert(rowIndex, c.bX_Index) = -lt10;
+     A.insert(rowIndex, c.aY_Index) = lt11;
+     A.insert(rowIndex, c.bY_Index) = -lt11-w;
+     rowIndex++;
+     }
+     else if(c.aX_Index == edgeI.bX_Index && c.aY_Index == edgeI.bY_Index) //  c.a = e.b
+     {
+     // printf("\n c.a = e.b (top left)");
+     
+     A.insert(rowIndex, edgeI.aX_Index) = -w;
+     A.insert(rowIndex, c.aX_Index) = w+lt00;
+     A.insert(rowIndex, c.bX_Index) = -lt00;
+     A.insert(rowIndex, c.aY_Index) = +lt01;
+     A.insert(rowIndex, c.bY_Index) = -lt01;
+     rowIndex++;
+     
+     A.insert(rowIndex, edgeI.aY_Index) = -w;
+     A.insert(rowIndex, c.aX_Index) = lt10;
+     A.insert(rowIndex, c.bX_Index) = -lt10;
+     A.insert(rowIndex, c.aY_Index) = w+lt11;
+     A.insert(rowIndex, c.bY_Index) = -lt11;
+     rowIndex++;
+     
+     }
+     else if(c.bX_Index == edgeI.bX_Index && c.bY_Index == edgeI.bY_Index) //  c.b = e.b
+     {
+     //printf("\n c.b = e.b (bottom left)");
+     
+     A.insert(rowIndex, edgeI.aX_Index) = -w;
+     A.insert(rowIndex, c.aX_Index) = lt00;
+     A.insert(rowIndex, c.bX_Index) = w-lt00;
+     A.insert(rowIndex, c.aY_Index) = lt01;
+     A.insert(rowIndex, c.bY_Index) = -lt01;
+     rowIndex++;
+     
+     A.insert(rowIndex, edgeI.aY_Index) = -w;
+     A.insert(rowIndex, c.aX_Index) = lt10;
+     A.insert(rowIndex, c.bX_Index) = -lt10;
+     A.insert(rowIndex, c.aY_Index) = lt11;
+     A.insert(rowIndex, c.bY_Index) = w-lt11;
+     rowIndex++;
+     }
+     else{ // edges not connected
+     //printf("\n edges not connected");
+     
+     A.insert(rowIndex, edgeI.aX_Index) = -w;
+     A.insert(rowIndex, edgeI.bX_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = lt00;
+     A.insert(rowIndex, c.bX_Index) = -lt00;
+     A.insert(rowIndex, c.aY_Index) = lt01;
+     A.insert(rowIndex, c.bY_Index) = -lt01;
+     rowIndex++;
+     
+     A.insert(rowIndex, edgeI.aY_Index) = -w;
+     A.insert(rowIndex, edgeI.bY_Index) = w;
+     A.insert(rowIndex, c.aX_Index) = lt10;
+     A.insert(rowIndex, c.bX_Index) = -lt10;
+     A.insert(rowIndex, c.aY_Index) = lt11;
+     A.insert(rowIndex, c.bY_Index) = -lt11;
+     rowIndex++;
+     }
+     }
+     }
+     }
+     
+     
+     printf("\n compute grid orientation terms");
+     std::vector<MeshQuad>::iterator quadIter = meshQuads.begin();
+     
+     for(int x=0; x<numXVertices-1; x++)
+     {
+     for(int y=0; y<numYVertices-1; y++,quadIter++)
+     {
+     MeshQuad quad = *quadIter;
+     
+     if(y < numYVertices-2 && x < numXVertices-2)
+     {
+     //x2(quad.tlY_Index) = x2(quad.trY_Index);
+     A.insert(rowIndex, quad.tlY_Index) = 1;
+     A.insert(rowIndex, quad.trY_Index) = -1;
+     rowIndex++;
+     
+     //x2(quad.tlX_Index) = x2(quad.blX_Index);
+     A.insert(rowIndex, quad.tlX_Index) = 1;
+     A.insert(rowIndex, quad.blX_Index) = -1;
+     rowIndex++;
+     }
+     else{
+     // x2(quad.tlY_Index) = x2(quad.trY_Index);
+     A.insert(rowIndex, quad.tlY_Index) = 1;
+     A.insert(rowIndex, quad.trY_Index) = -1;
+     rowIndex++;
+     
+     // x2(quad.tlX_Index) = x2(quad.blX_Index);
+     A.insert(rowIndex, quad.tlX_Index) = 1;
+     A.insert(rowIndex, quad.blX_Index) = -1;
+     rowIndex++;
+     
+     // x2(quad.trX_Index) = x2(quad.brX_Index);
+     A.insert(rowIndex, quad.trX_Index) = 1;
+     A.insert(rowIndex, quad.brX_Index) = -1;
+     rowIndex++;
+     
+     // x2(quad.blY_Index) = x2(quad.brY_Index);
+     A.insert(rowIndex, quad.blY_Index) = 1;
+     A.insert(rowIndex, quad.brY_Index) = -1;
+     rowIndex++;
+     }
+     }
+     }
+     
+     
+     printf("\n compute boundary condition terms");
+     std::vector<int>::iterator botIter = bottomBoundaryIndices.begin();
+     for (std::vector<int>::iterator topIter = topBoundaryIndices.begin(); topIter!=topBoundaryIndices.end(); topIter++,botIter++)
+     {
+     //we could precompute these
+     //x2(*topIter) = 0;
+     A.insert(rowIndex, *topIter) = w2;
+     rowIndex++;
+     
+     //x2(*botIter) = newHeight;
+     A.insert(rowIndex, *botIter) = w2;
+     b(rowIndex) = w2*newHeight;
+     rowIndex++;
+     }
+     
+     std::vector<int>::iterator leftIter = leftBoundaryIndices.begin();
+     for (std::vector<int>::iterator rightIter = rightBoundaryIndices.begin(); rightIter!=rightBoundaryIndices.end(); rightIter++,leftIter++)
+     {
+     //we could precompute these
+     //x2(*leftIter) = 0;
+     A.insert(rowIndex, *leftIter) = w2;
+     rowIndex++;
+     
+     //x2(*rightIter) = newWidth;
+     A.insert(rowIndex, *rightIter) = w2;
+     b(rowIndex) = w2*newWidth;
+     rowIndex++;
+     }
+     */
     
     Eigen::VectorXd x2(2*numVertices);
     
@@ -1775,40 +1618,6 @@ void MeshWarpRetargetter::testEnergyTerms(int newWidth, int newHeight)
 }
 
 
-void MeshWarpRetargetter::resizeMesh(int newWidth, int newHeight)
-{
-    
-    
-    /*
-    for(int i=0; i<2*numVertices; i++){
-     
-        vertexVectorX(i) += 0.5-Rand::randFloat(1.f);
-    }
-    */
-    
-    gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
-    int vertexCounter = 0;
-    for( int x = 0; x < numXVertices; ++x ) {
-        for( int y = 0; y < numYVertices; ++y ) {
-            float vX = vertexVectorX(vertexCounter);
-            float vY = vertexVectorX((numVertices + vertexCounter));
-            iter.setPosition(vX, vY, 0.0f );
-            ++iter;
-            vertexCounter++;
-        }
-    }
-    // fill A and b
-    
-    /*
-    Eigen::ConjugateGradient<Eigen::SparseMatrix<double> > cg;
-    cg.compute(A);
-    //x = cg.solve(b);
-    std::cout << "#iterations:     " << cg.iterations() << std::endl;
-    std::cout << "estimated error: " << cg.error()      << std::endl;
-    // update b, and solve again
-    x = cg.solve(b);
-     */
-}
 
 
 void MeshWarpRetargetter::drawMesh(ci::gl::Texture texture)

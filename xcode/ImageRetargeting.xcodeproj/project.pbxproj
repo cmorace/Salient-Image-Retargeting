@@ -15,9 +15,8 @@
 		1B9C445908144D2DB2CE2DAD /* ImageRetargetingApp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E08733AD33AC4F61B8CD124B /* ImageRetargetingApp.cpp */; };
 		5323E6B20EAFCA74003A9687 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5323E6B10EAFCA74003A9687 /* CoreVideo.framework */; };
 		5323E6B60EAFCA7E003A9687 /* QTKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5323E6B50EAFCA7E003A9687 /* QTKit.framework */; };
-		729F79381A0626840036713A /* libopencv_core.2.4.9.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 729F79351A0626840036713A /* libopencv_core.2.4.9.dylib */; };
-		729F79391A0626840036713A /* libopencv_highgui.2.4.9.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 729F79361A0626840036713A /* libopencv_highgui.2.4.9.dylib */; };
-		729F793A1A0626840036713A /* libopencv_imgproc.2.4.9.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 729F79371A0626840036713A /* libopencv_imgproc.2.4.9.dylib */; };
+		722FA8161A30FA7D00611A1C /* libopencv_core.2.4.9.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 722FA8141A30FA7D00611A1C /* libopencv_core.2.4.9.dylib */; };
+		722FA8171A30FA7D00611A1C /* libopencv_imgproc.2.4.9.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 722FA8151A30FA7D00611A1C /* libopencv_imgproc.2.4.9.dylib */; };
 		72E7D9F21A127771009F6E60 /* Warp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72E7D9EE1A127771009F6E60 /* Warp.cpp */; };
 		72E7D9F31A127771009F6E60 /* WarpBilinear.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72E7D9EF1A127771009F6E60 /* WarpBilinear.cpp */; };
 		72E7D9F41A127771009F6E60 /* WarpPerspective.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72E7D9F01A127771009F6E60 /* WarpPerspective.cpp */; };
@@ -39,6 +38,10 @@
 		5323E6B10EAFCA74003A9687 /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = /System/Library/Frameworks/CoreVideo.framework; sourceTree = "<absolute>"; };
 		5323E6B50EAFCA7E003A9687 /* QTKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QTKit.framework; path = /System/Library/Frameworks/QTKit.framework; sourceTree = "<absolute>"; };
 		68E1788618A84E1E83CF3196 /* Resources.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = Resources.h; path = ../include/Resources.h; sourceTree = "<group>"; };
+		722FA80D1A30F59F00611A1C /* libviennacl.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libviennacl.dylib; path = "../../../../../../SDKs/ViennaCL-1.6.1/build/libviennacl/libviennacl.dylib"; sourceTree = "<group>"; };
+		722FA8141A30FA7D00611A1C /* libopencv_core.2.4.9.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_core.2.4.9.dylib; path = ../../../../../../usr/local/Cellar/opencv/2.4.9/lib/libopencv_core.2.4.9.dylib; sourceTree = "<group>"; };
+		722FA8151A30FA7D00611A1C /* libopencv_imgproc.2.4.9.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_imgproc.2.4.9.dylib; path = ../../../../../../usr/local/Cellar/opencv/2.4.9/lib/libopencv_imgproc.2.4.9.dylib; sourceTree = "<group>"; };
+		722FA8181A310B0500611A1C /* OpenCL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenCL.framework; path = System/Library/Frameworks/OpenCL.framework; sourceTree = SDKROOT; };
 		7256200F1A1B964200A09324 /* MeshWarpRetargetter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MeshWarpRetargetter.h; path = ../include/MeshWarpRetargetter.h; sourceTree = "<group>"; };
 		725620111A1F046B00A09324 /* convolve.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = convolve.h; sourceTree = "<group>"; };
 		725620121A1F046B00A09324 /* disjoint-set.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "disjoint-set.h"; sourceTree = "<group>"; };
@@ -77,9 +80,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				729F79381A0626840036713A /* libopencv_core.2.4.9.dylib in Frameworks */,
-				729F79391A0626840036713A /* libopencv_highgui.2.4.9.dylib in Frameworks */,
-				729F793A1A0626840036713A /* libopencv_imgproc.2.4.9.dylib in Frameworks */,
+				722FA8161A30FA7D00611A1C /* libopencv_core.2.4.9.dylib in Frameworks */,
+				722FA8171A30FA7D00611A1C /* libopencv_imgproc.2.4.9.dylib in Frameworks */,
 				8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */,
 				0091D8F90E81B9330029341E /* OpenGL.framework in Frameworks */,
 				5323E6B20EAFCA74003A9687 /* CoreVideo.framework in Frameworks */,
@@ -180,6 +182,10 @@
 		29B97323FDCFA39411CA2CEA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				722FA8181A310B0500611A1C /* OpenCL.framework */,
+				722FA8141A30FA7D00611A1C /* libopencv_core.2.4.9.dylib */,
+				722FA8151A30FA7D00611A1C /* libopencv_imgproc.2.4.9.dylib */,
+				722FA80D1A30F59F00611A1C /* libviennacl.dylib */,
 				729F79351A0626840036713A /* libopencv_core.2.4.9.dylib */,
 				729F79361A0626840036713A /* libopencv_highgui.2.4.9.dylib */,
 				729F79371A0626840036713A /* libopencv_imgproc.2.4.9.dylib */,
@@ -338,8 +344,7 @@
 				INSTALL_PATH = "$(HOME)/Applications";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					/Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/OpenCV,
-					"\"$(SRCROOT)/../../../xCodeProjects/OpenCVLearning/common\"",
+					/usr/local/Cellar/opencv/2.4.9/lib,
 				);
 				OTHER_LDFLAGS = "\"$(CINDER_PATH)/lib/libcinder_d.a\"";
 				PRODUCT_NAME = ImageRetargeting;
@@ -371,8 +376,7 @@
 				INSTALL_PATH = "$(HOME)/Applications";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					/Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/OpenCV,
-					"\"$(SRCROOT)/../../../xCodeProjects/OpenCVLearning/common\"",
+					/usr/local/Cellar/opencv/2.4.9/lib,
 				);
 				OTHER_LDFLAGS = "\"$(CINDER_PATH)/lib/libcinder.a\"";
 				PRODUCT_NAME = ImageRetargeting;

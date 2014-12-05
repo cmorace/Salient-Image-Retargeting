@@ -92,7 +92,7 @@ private:
 
 SaliencySegmentor::SaliencySegmentor()
 {
-    segBlurDeviation = 0.6f;
+    segBlurDeviation = 0.8f;
     segNeighborThreshold = 500;
     segMinSize = 100;
     timer = new cinder::Timer(false);

@@ -13,6 +13,7 @@
 #include "Eigen/SparseQR"
 #include "cinder/Rand.h"
 
+
 class MeshWarpRetargetter {
     
 public:
@@ -22,7 +23,9 @@ public:
     void initMesh(unsigned int imgWidth, unsigned int imgHeight, SaliencySegmentor* segmentor);
     void drawMesh(ci::gl::Texture texture);
     void drawEdges(ci::gl::Texture texture);
-    void computeOptimizationMatrix(int newWidth, int newHeight);
+    void resizeMeshRect(int newWidth, int newHeight);
+    void resizeMeshEllipse(int newWidth, int newHeight);
+    
     
     int quadSize = 30;
     double transformationAlpha = 0.8;
@@ -67,6 +70,9 @@ private:
     std::vector<int>	leftBoundaryIndices;
     std::vector<int>	rightBoundaryIndices;
     
+    std::vector<int> circleBoundaryX_Indices;
+    std::vector<int> circleBoundaryY_Indices;
+    
     ci::gl::VboMeshRef vboMesh;
     
     struct MeshPatch{
@@ -83,8 +89,6 @@ private:
     Eigen::VectorXd vertexVectorX;
     Eigen::VectorXd answerVectorB;
     
-    
-    
     float quadWidth, quadHeight;
     int numXVertices;
     int numYVertices;
@@ -94,13 +98,14 @@ private:
     int mOriginal;
     int nOriginal;
     
-
     Eigen::Matrix2d computeTransformation(MeshEdge c, MeshEdge e);
     Eigen::Matrix2d computeLinearTransformation(Eigen::Matrix2d, int newWidth, int newHeight, int oldWidth, int oldHeight);
     int computeTransformationTerms(std::vector< Eigen::Triplet<double>> &terms, double saliencyWeight, int rowIndex);
     int computeLinearTransformationTerms(std::vector< Eigen::Triplet<double> > &terms, double saliencyWeight, int rowIndex, int newWidth, int newHeight);
     int computeGridOrientationTerms(std::vector< Eigen::Triplet<double>> &terms, int rowIndex);
     int computeBoundaryConditionTerms(std::vector< Eigen::Triplet<double>> &terms, Eigen::VectorXd &b, double weight, int rowIndex, int newWidth, int newHeight);
+    int computeCircleBoundaryConditionTerms(std::vector< Eigen::Triplet<double>> &terms, Eigen::VectorXd &b, double weight, int rowIndex, int newWidth, int newHeight);
+    
 
 
     void testEnergyTerms(int newWidth, int newHeight);
@@ -247,6 +252,28 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
         leftBoundaryIndices.push_back(y);
         rightBoundaryIndices.push_back(numVertices - numYVertices + y);
     }
+    
+    
+    circleBoundaryX_Indices.clear();
+    circleBoundaryY_Indices.clear();
+    
+    for( int y = 0; y < numYVertices; ++y ) { //2*y
+        circleBoundaryX_Indices.push_back(y);
+        circleBoundaryY_Indices.push_back(y + numVertices);
+    }
+    for( int x = 1; x < numXVertices; ++x ) { //2x-2)
+        circleBoundaryX_Indices.push_back((x+1) * numYVertices -1);
+        circleBoundaryY_Indices.push_back((x+1) * numYVertices -1 + numVertices);
+    }
+    for( int y = 1; y < numYVertices; ++y ) { //2y-2)
+        circleBoundaryX_Indices.push_back(numVertices - y - 1);
+        circleBoundaryY_Indices.push_back(numVertices -  y - 1 + numVertices);
+    }
+    for( int x = numXVertices-2; x > 0; --x ) { //2x - 4)
+        circleBoundaryX_Indices.push_back(x * numYVertices);
+        circleBoundaryY_Indices.push_back(x * numYVertices + numVertices);
+    }
+    
 }
 
 
@@ -323,13 +350,12 @@ Eigen::Matrix2d MeshWarpRetargetter::computeLinearTransformation(Eigen::Matrix2d
     return L*T;
 }
 
-
-void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
+void MeshWarpRetargetter::resizeMeshRect(int newWidth, int newHeight)
 {
     int rows = 2*numEdges                                                           // transformation terms
-             + 2*numEdges                                                           // linear transformation terms
-             + 2*(numXVertices-2)*(numYVertices-2)+4*(numXVertices+numYVertices-3)  // grid orientation terms
-             + 2*(numXVertices+numYVertices);                                       // boundary condition terms
+    + 2*numEdges                                                           // linear transformation terms
+    + 2*(numXVertices-2)*(numYVertices-2)+4*(numXVertices+numYVertices-3)  // grid orientation terms
+    + 2*(numXVertices+numYVertices);                                       // boundary condition terms
     
     printf("\ncalculated rows = %d",rows);
     
@@ -338,8 +364,6 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
     
     Eigen::VectorXd b(rows);
     b.setZero();
-    
-    
     
     int rowIndex = 0;
     double w1 = 0.8; //saliency weight
@@ -362,9 +386,13 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
     Eigen::VectorXd ATb = AT*b;
     cg.compute(ATA);
     
+    Eigen::VectorXd residual;
+    
     
     Eigen::VectorXd x2(2*numVertices);
     int vertexCounter = 0;
+    
+    
     for( int x = 0; x < numXVertices; ++x ) {
         for( int y = 0; y < numYVertices; ++y ) {
             x2(vertexCounter) = vertexVectorX(vertexCounter);
@@ -373,11 +401,86 @@ void MeshWarpRetargetter::computeOptimizationMatrix(int newWidth, int newHeight)
         }
     }
     
-    //cg.setTolerance(1.0e-12);
+    
     x2 = cg.solveWithGuess(ATb,x2);
     std::cout << "#iterations:     " << cg.iterations() << std::endl;
     std::cout << "estimated error: " << cg.error()      << std::endl;
     
+    
+    gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
+    vertexCounter = 0;
+    for( int x = 0; x < numXVertices; ++x ) {
+        for( int y = 0; y < numYVertices; ++y ) {
+            float vX = x2(vertexCounter);
+            float vY = x2(numVertices + vertexCounter);
+            iter.setPosition(vX, vY, 0.0f );
+            ++iter;
+            vertexCounter++;
+        }
+    }
+}
+
+
+void MeshWarpRetargetter::resizeMeshEllipse(int newWidth, int newHeight)
+{
+    int rows = 2*numEdges                                                           // transformation terms
+             + 2*numEdges                                                           // linear transformation terms
+             + 2*(numXVertices-2)*(numYVertices-2)+4*(numXVertices+numYVertices-3)  // grid orientation terms
+             + 2*(numXVertices+numYVertices);                                       // boundary condition terms
+    
+    //cicle boundary testing
+    rows += 2*(numXVertices+numYVertices)-8;
+    printf("\ncalculated rows = %d",rows);
+    
+    Eigen::SparseMatrix<double> A(rows,2*numVertices);
+    A.setZero();
+    
+    Eigen::VectorXd b(rows);
+    b.setZero();
+    
+    
+    
+    int rowIndex = 0;
+    double w1 = 0.8; //saliency weight
+    double w2 = numVertices; //boundary weight
+    
+    std::vector<Eigen::Triplet<double>> tripletList;
+    tripletList.reserve(rows);
+    rowIndex = computeTransformationTerms(tripletList, w1, rowIndex);
+    rowIndex = computeLinearTransformationTerms(tripletList, w1, rowIndex, newWidth, newHeight);
+    rowIndex = computeGridOrientationTerms(tripletList, rowIndex);
+    //rowIndex = computeBoundaryConditionTerms(tripletList, b, w2, rowIndex, newWidth, newHeight);
+    rowIndex = computeCircleBoundaryConditionTerms(tripletList, b, w2, rowIndex, newWidth, newHeight);
+    
+    printf("\ntripletList.size = %lu",tripletList.size());
+    A.setFromTriplets(tripletList.begin(), tripletList.end());
+    printf("\ntotal rows = %d\n",rowIndex);
+    
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double> > cg;
+    Eigen::SparseMatrix<double> AT = A.transpose();
+    Eigen::SparseMatrix<double> ATA = AT*A;
+    Eigen::VectorXd ATb = AT*b;
+    cg.compute(ATA);
+    
+    Eigen::VectorXd residual;
+    
+    
+    Eigen::VectorXd x2(2*numVertices);
+    int vertexCounter = 0;
+    
+    
+    for( int x = 0; x < numXVertices; ++x ) {
+        for( int y = 0; y < numYVertices; ++y ) {
+            x2(vertexCounter) = vertexVectorX(vertexCounter);
+            x2(numVertices + vertexCounter) = vertexVectorX(numVertices + vertexCounter);
+            vertexCounter++;
+        }
+    }
+    
+    
+    x2 = cg.solveWithGuess(ATb,x2);
+    std::cout << "#iterations:     " << cg.iterations() << std::endl;
+    std::cout << "estimated error: " << cg.error()      << std::endl;
     
     
     gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
@@ -421,6 +524,66 @@ int MeshWarpRetargetter::computeBoundaryConditionTerms(std::vector< Eigen::Tripl
         terms.push_back(Eigen::Triplet<double>(rowIndex, *rightIter, weight));
         b(rowIndex) = weight*newWidth;
         rowIndex++;
+    }
+    return rowIndex;
+}
+
+int MeshWarpRetargetter::computeCircleBoundaryConditionTerms(std::vector< Eigen::Triplet<double> > &terms, Eigen::VectorXd &b, double weight, int rowIndex, int newWidth, int newHeight)
+{
+    
+    cinder::Vec2i c = Vec2i(newWidth/2,newHeight/2);
+    float PI = 3.14159f;
+    float theta3 = atan((1.0*c.y)/c.x);
+    float theta0 = PI-theta3;
+    float dty = 2*theta3/(numYVertices-1);
+    float dtx = (PI - 2*theta3)/(numXVertices-1);
+    int vertexCounter = 0;
+    std::vector<int>::iterator xIter = circleBoundaryX_Indices.begin();
+    for (std::vector<int>::iterator yIter = circleBoundaryY_Indices.begin(); yIter!=circleBoundaryY_Indices.end(); xIter++,yIter++)
+    {
+        if(vertexCounter < numYVertices){
+            float theta = theta0 + vertexCounter * dty;
+            terms.push_back(Eigen::Triplet<double>(rowIndex, *xIter, weight));
+            b(rowIndex) = weight*(c.x + c.x*cos(theta));
+            rowIndex++;
+            terms.push_back(Eigen::Triplet<double>(rowIndex, *yIter, weight));
+            b(rowIndex) = weight*(c.y - c.y*sin(theta));
+            rowIndex++;
+            vertexCounter++;
+        }
+        else if( vertexCounter < numYVertices + numXVertices - 2)
+        {
+            
+            float theta = theta0 + 2*theta3 + dtx + (vertexCounter - numYVertices)*dtx;
+            terms.push_back(Eigen::Triplet<double>(rowIndex, *xIter, weight));
+            b(rowIndex) = weight*(c.x + c.x*cos(theta));
+            rowIndex++;
+            terms.push_back(Eigen::Triplet<double>(rowIndex, *yIter, weight));
+            b(rowIndex) = weight*(c.y - c.y*sin(theta));
+            rowIndex++;
+            vertexCounter++;
+        }
+        else if( vertexCounter < 2*numYVertices + numXVertices - 3)
+        {
+            float theta = theta0 + PI + dty + (vertexCounter - (numYVertices + numXVertices - 2))*dty;
+            terms.push_back(Eigen::Triplet<double>(rowIndex, *xIter, weight));
+            b(rowIndex) = weight*(c.x + c.x*cos(theta));
+            rowIndex++;
+            terms.push_back(Eigen::Triplet<double>(rowIndex, *yIter, weight));
+            b(rowIndex) = weight*(c.y - c.y*sin(theta));
+            rowIndex++;
+            vertexCounter++;
+        }
+        else{
+            float theta = theta0 + 2*theta3 + PI + dtx + (vertexCounter - (2* numYVertices + numXVertices - 3))*dtx;
+            terms.push_back(Eigen::Triplet<double>(rowIndex, *xIter, weight));
+            b(rowIndex) = weight*(c.x + c.x*cos(theta));
+            rowIndex++;
+            terms.push_back(Eigen::Triplet<double>(rowIndex, *yIter, weight));
+            b(rowIndex) = weight*(c.y - c.y*sin(theta));
+            rowIndex++;
+            vertexCounter++;
+        }
     }
     return rowIndex;
 }

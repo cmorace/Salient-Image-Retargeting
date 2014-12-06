@@ -25,10 +25,12 @@ public:
     void drawEdges(ci::gl::Texture texture);
     void resizeMeshRect(int newWidth, int newHeight);
     void resizeMeshEllipse(int newWidth, int newHeight);
-    
+    const int getNumVertices();
     
     int quadSize = 30;
-    double transformationAlpha = 0.8;
+    int resizeWidth = 400;
+    int resizeHeight = 600;
+    double transformationWeight = 0.8;
     bool isDrawingWireFrame = true;
     
 private:
@@ -42,6 +44,9 @@ private:
         int bX_Index;
         int aY_Index;
         int bY_Index;
+        
+        // testing
+        float saliency;
     };
     std::vector<MeshEdge>	meshEdges;
     
@@ -61,7 +66,6 @@ private:
         int trY_Index;
         int brY_Index;
         int blY_Index;
-        
     };
     std::vector<MeshQuad>	meshQuads;
     
@@ -106,9 +110,9 @@ private:
     int computeBoundaryConditionTerms(std::vector< Eigen::Triplet<double>> &terms, Eigen::VectorXd &b, double weight, int rowIndex, int newWidth, int newHeight);
     int computeCircleBoundaryConditionTerms(std::vector< Eigen::Triplet<double>> &terms, Eigen::VectorXd &b, double weight, int rowIndex, int newWidth, int newHeight);
     
+    void setEdgeSaliency(MeshEdge& e, universe* u);
+    void test(int newWidth, int newHeight);
 
-
-    void testEnergyTerms(int newWidth, int newHeight);
 };
 
 
@@ -117,6 +121,12 @@ MeshWarpRetargetter::MeshWarpRetargetter()
     printf("\nMeshWarpRetargetter");
     vertexVectorX = Eigen::VectorXd();
 }
+
+const int MeshWarpRetargetter::getNumVertices()
+{
+    return numVertices;
+}
+
 
 
 void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight)
@@ -152,8 +162,8 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
         for( int y = 0; y < numYVertices; ++y ) {
             
             // texture coordinates mapped to [0,1]x[0,1]
-            ci::Vec2f v = Vec2f( x / (numXVertices-1.f),
-                                 y / (numYVertices-1.f) );
+            ci::Vec2f v = Vec2f( (1.f * x) / (numXVertices-1),
+                                 (1.f * y) / (numYVertices-1) );
             
             texCoords.push_back( v );
             
@@ -276,6 +286,39 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
     
 }
 
+void MeshWarpRetargetter::setEdgeSaliency(MeshWarpRetargetter::MeshEdge& e, universe* u)
+{
+    ci::Vec2f a = e.a;
+    ci::Vec2f b = e.b;
+    
+    float edgeSaliency = 0;
+    if(a.x == b.x)
+    {
+        for (int y=a.y; y<=b.y; y++) {
+            int patchID = u->find(nOriginal * y + a.x);
+            if(currentPatchMap[patchID].normalScore > edgeSaliency)
+            {
+                edgeSaliency = currentPatchMap[patchID].normalScore;
+            }
+            
+        }
+    }
+    else
+    {
+        for (int x=a.x; x<=b.x; x++) {
+            int patchID = u->find(nOriginal * a.y + x);
+            if(currentPatchMap[patchID].normalScore > edgeSaliency)
+            {
+                edgeSaliency = currentPatchMap[patchID].normalScore;
+            }
+            
+        }
+    }
+    e.saliency = edgeSaliency;
+    
+}
+
+
 
 void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight, SaliencySegmentor* segmentor)
 {
@@ -296,6 +339,8 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
         //printf("\n(x,y) = (%d,%d)",edgeX,edgeY);
         int patchID = u->find(nOriginal * edgeY + edgeX);
         currentPatchMap[patchID].edges.push_back(edgeIndex);
+        //test add edge saliency
+        setEdgeSaliency(*edgeIter, u);
     }
     
     meshPatches.clear();  // todo:: should also clean up meshPatches contents here
@@ -352,12 +397,12 @@ Eigen::Matrix2d MeshWarpRetargetter::computeLinearTransformation(Eigen::Matrix2d
 
 void MeshWarpRetargetter::resizeMeshRect(int newWidth, int newHeight)
 {
-    int rows = 2*numEdges                                                           // transformation terms
+    int rows = 2*numEdges                                                  // transformation terms
     + 2*numEdges                                                           // linear transformation terms
     + 2*(numXVertices-2)*(numYVertices-2)+4*(numXVertices+numYVertices-3)  // grid orientation terms
     + 2*(numXVertices+numYVertices);                                       // boundary condition terms
     
-    printf("\ncalculated rows = %d",rows);
+    //printf("\ncalculated rows = %d",rows);
     
     Eigen::SparseMatrix<double> A(rows,2*numVertices);
     A.setZero();
@@ -366,49 +411,33 @@ void MeshWarpRetargetter::resizeMeshRect(int newWidth, int newHeight)
     b.setZero();
     
     int rowIndex = 0;
-    double w1 = 0.8; //saliency weight
+    double w1 = transformationWeight; //saliency weight
     double w2 = numVertices; //boundary weight
     
     std::vector<Eigen::Triplet<double>> tripletList;
     tripletList.reserve(rows);
     rowIndex = computeTransformationTerms(tripletList, w1, rowIndex);
-    rowIndex = computeLinearTransformationTerms(tripletList, w1, rowIndex, newWidth, newHeight);
     rowIndex = computeGridOrientationTerms(tripletList, rowIndex);
+    rowIndex = computeLinearTransformationTerms(tripletList, w1, rowIndex, newWidth, newHeight);
     rowIndex = computeBoundaryConditionTerms(tripletList, b, w2, rowIndex, newWidth, newHeight);
     
-    printf("\ntripletList.size = %lu",tripletList.size());
+    //printf("\ntripletList.size = %lu",tripletList.size());
     A.setFromTriplets(tripletList.begin(), tripletList.end());
-    printf("\ntotal rows = %d\n",rowIndex);
+    //printf("\ntotal rows = %d\n",rowIndex);
     
     Eigen::BiCGSTAB<Eigen::SparseMatrix<double> > cg;
     Eigen::SparseMatrix<double> AT = A.transpose();
     Eigen::SparseMatrix<double> ATA = AT*A;
     Eigen::VectorXd ATb = AT*b;
     cg.compute(ATA);
-    
-    Eigen::VectorXd residual;
-    
-    
     Eigen::VectorXd x2(2*numVertices);
-    int vertexCounter = 0;
-    
-    
-    for( int x = 0; x < numXVertices; ++x ) {
-        for( int y = 0; y < numYVertices; ++y ) {
-            x2(vertexCounter) = vertexVectorX(vertexCounter);
-            x2(numVertices + vertexCounter) = vertexVectorX(numVertices + vertexCounter);
-            vertexCounter++;
-        }
-    }
-    
-    
-    x2 = cg.solveWithGuess(ATb,x2);
-    std::cout << "#iterations:     " << cg.iterations() << std::endl;
-    std::cout << "estimated error: " << cg.error()      << std::endl;
+    x2 = cg.solveWithGuess(ATb,vertexVectorX);
+    //std::cout << "#iterations:     " << cg.iterations() << std::endl;
+    //std::cout << "estimated error: " << cg.error()      << std::endl;
     
     
     gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
-    vertexCounter = 0;
+    int vertexCounter = 0;
     for( int x = 0; x < numXVertices; ++x ) {
         for( int y = 0; y < numYVertices; ++y ) {
             float vX = x2(vertexCounter);
@@ -441,7 +470,7 @@ void MeshWarpRetargetter::resizeMeshEllipse(int newWidth, int newHeight)
     
     
     int rowIndex = 0;
-    double w1 = 0.8; //saliency weight
+    double w1 = transformationWeight; //saliency weight
     double w2 = numVertices; //boundary weight
     
     std::vector<Eigen::Triplet<double>> tripletList;
@@ -449,7 +478,6 @@ void MeshWarpRetargetter::resizeMeshEllipse(int newWidth, int newHeight)
     rowIndex = computeTransformationTerms(tripletList, w1, rowIndex);
     rowIndex = computeLinearTransformationTerms(tripletList, w1, rowIndex, newWidth, newHeight);
     rowIndex = computeGridOrientationTerms(tripletList, rowIndex);
-    //rowIndex = computeBoundaryConditionTerms(tripletList, b, w2, rowIndex, newWidth, newHeight);
     rowIndex = computeCircleBoundaryConditionTerms(tripletList, b, w2, rowIndex, newWidth, newHeight);
     
     printf("\ntripletList.size = %lu",tripletList.size());
@@ -461,30 +489,14 @@ void MeshWarpRetargetter::resizeMeshEllipse(int newWidth, int newHeight)
     Eigen::SparseMatrix<double> ATA = AT*A;
     Eigen::VectorXd ATb = AT*b;
     cg.compute(ATA);
-    
-    Eigen::VectorXd residual;
-    
-    
     Eigen::VectorXd x2(2*numVertices);
-    int vertexCounter = 0;
-    
-    
-    for( int x = 0; x < numXVertices; ++x ) {
-        for( int y = 0; y < numYVertices; ++y ) {
-            x2(vertexCounter) = vertexVectorX(vertexCounter);
-            x2(numVertices + vertexCounter) = vertexVectorX(numVertices + vertexCounter);
-            vertexCounter++;
-        }
-    }
-    
-    
-    x2 = cg.solveWithGuess(ATb,x2);
+    x2 = cg.solveWithGuess(ATb,vertexVectorX);
     std::cout << "#iterations:     " << cg.iterations() << std::endl;
     std::cout << "estimated error: " << cg.error()      << std::endl;
     
     
     gl::VboMesh::VertexIter iter = vboMesh->mapVertexBuffer();
-    vertexCounter = 0;
+    int vertexCounter = 0;
     for( int x = 0; x < numXVertices; ++x ) {
         for( int y = 0; y < numYVertices; ++y ) {
             float vX = x2(vertexCounter);
@@ -652,7 +664,9 @@ int MeshWarpRetargetter::computeLinearTransformationTerms(std::vector< Eigen::Tr
                 Eigen::Matrix2d T = *iter;
                 Eigen::Matrix2d LT = computeLinearTransformation(T,newWidth,newHeight,nOriginal,mOriginal);
                 
-                int w = (1-saliencyWeight) * p.p.normalScore;
+                //
+                double w = (1-saliencyWeight) * p.p.normalScore;
+                //printf("\nw = %d",w);
                 // Papers equations
                 double lt00 = w*LT(0,0);
                 double lt01 = w*LT(0,1);
@@ -701,7 +715,7 @@ int MeshWarpRetargetter::computeLinearTransformationTerms(std::vector< Eigen::Tr
                     //printf("\n c.b = e.a (bottom right)");
                     terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.bX_Index, w));
                     terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt00));
-                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt10-w));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, -lt00-w));
                     terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt01));
                     terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt01));
                     rowIndex++;
@@ -737,7 +751,7 @@ int MeshWarpRetargetter::computeLinearTransformationTerms(std::vector< Eigen::Tr
                     //printf("\n c.b = e.b (bottom left)");
                     terms.push_back(Eigen::Triplet<double>(rowIndex, edgeI.aX_Index, -w));
                     terms.push_back(Eigen::Triplet<double>(rowIndex, c.aX_Index, lt00));
-                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, w-lt10));
+                    terms.push_back(Eigen::Triplet<double>(rowIndex, c.bX_Index, w-lt00));
                     terms.push_back(Eigen::Triplet<double>(rowIndex, c.aY_Index, lt01));
                     terms.push_back(Eigen::Triplet<double>(rowIndex, c.bY_Index, -lt01));
                     rowIndex++;
@@ -788,12 +802,13 @@ int MeshWarpRetargetter::computeTransformationTerms(std::vector< Eigen::Triplet<
             for (std::vector<Eigen::Matrix2d>::iterator iter = p.transformation.begin(); iter != p.transformation.end(); iter++,edgeCounter++) {
                 
                 Eigen::Matrix2d T = *iter;
+                MeshEdge edgeI = p.patchEdges[edgeCounter];
                 // transformation equations
                 // (we could compute this first transformation during preprocessing)
                 
                 double s = w*T(0,0);
                 double r = w*T(0,1);
-                MeshEdge edgeI = p.patchEdges[edgeCounter];
+                
                 
                 // we need to account for edges that share vertices with the patch representative edge
                 if(c.aX_Index == edgeI.aX_Index && c.aY_Index == edgeI.aY_Index) //2 cases (c=e or ca=ea (top))
@@ -923,7 +938,7 @@ int MeshWarpRetargetter::computeTransformationTerms(std::vector< Eigen::Triplet<
 }
 
 
-void MeshWarpRetargetter::testEnergyTerms(int newWidth, int newHeight)
+void MeshWarpRetargetter::test(int newWidth, int newHeight)
 {
     /////                               TESTING ONLY!!!
     
@@ -1828,13 +1843,23 @@ void MeshWarpRetargetter::drawEdges(ci::gl::Texture texture)
         float patchSaliencyScore = patchIter->second.normalScore;
         for(std::vector<int>::iterator edgeIndexIter = patchEdgeIndices.begin(); edgeIndexIter!=patchEdgeIndices.end();edgeIndexIter++)
         {
-            // gl::color( ColorA(1, 0, 0, patchSaliencyScore) );
+            
             float red = 0.2f+patchSaliencyScore;
             float green = 0.2f+patchSaliencyScore;
             float blue = 0.2f+patchSaliencyScore;
             float alpha = 0.2f+patchSaliencyScore;
-            gl::color( ColorA(red,green,blue,alpha) );
+            
             MeshEdge edge = meshEdges[*edgeIndexIter];
+            //test
+            /*
+            float red = 0.2f+ edge.saliency;
+            float green = 0.2f+edge.saliency;
+            float blue = 0.2f+edge.saliency;
+            float alpha = 0.2f+edge.saliency;
+            // end
+             */
+            
+            gl::color( ColorA(red,green,blue,alpha) );
             ci::Vec2f a = edge.a;
             ci::Vec2f b = edge.b;
             glVertex2f(a.x,a.y);

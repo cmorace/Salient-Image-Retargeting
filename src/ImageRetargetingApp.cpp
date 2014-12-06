@@ -18,14 +18,14 @@ public:
     void fileDrop( FileDropEvent event );
     void mouseDownRetarget( MouseEvent event );
     void mouseDragRetarget( MouseEvent event );
-    void resizeWarp();
+    
     
 private:
     enum class SeamCarvingState
     {
         ShowImage,
         ShowGradient,
-        ShowSeamCarving,
+        SeamCarving,
         Undefined
     };
     SeamCarvingState seamCarvingState = SeamCarvingState::ShowImage;
@@ -43,53 +43,15 @@ private:
     };
     MeshWarpingState meshWarpingState = MeshWarpingState::ShowImage;
     
-    void initData();
-    void initWindows();
-    void initTextures(fs::path path);
-    void initGUI();
-    
-    //void updateGUI();
-    void updateWindows();
-    void updateApplication();
-    
-    void resetStates();
-    
-    //Warping
-    void segmentRandomButtonClick();
-    void segmentColorButtonClick();
-    void segmentSaliencyButtonClick();
-    
-    void sobelSaliencyButtonClick();
-    void scharrSaliencyButtonClick();
-    
-    void getMeshButtonClick();
-    void getPatchEdgeClick();
-    void resizeMeshRect();
-    void resizeMeshEllipse();
-    
-    //SeamCarving
-    void seamCarveResetButtonClick();
-    void sobelGradientButtonClick();
-    void scharrGradientButtonClick();
-    
-    
-    void verticalSeamGradientButtonClick();
-    void horizontalSeamGradientButtonClick();
-    void showCurrentSeamButtonClick();
-    void deleteCurrentSeamButtonClick();
-    void addCurrentSeamButtonClick();
-    void resizeSeamButtonClick();
-    ////////////////////////////////////////////////
-    
-    void drawOriginalImageWindow();
-    void drawSegmentedImageWindow();
-    void drawGradientImageWindow();
-    void drawRetargettedImageWindow();
-    
+    int originalWidth = 0;
+    int originalHeight = 0;
+    int linearScaleWidth;
+    int linearScaleHeight;
     SaliencySegmentor*   saliencySegmentor;
     MeshWarpRetargetter* meshWarpRetargetter;
     GradientSeamCarver*  seamCarver;
     
+    // Surfaces are raster images living on cpu;
     Surface             originalImage;
     Surface             segmentedImage;
     Surface             saliencyImage;
@@ -97,24 +59,60 @@ private:
     Surface             seamCarvedImage;
     Surface             seamCarvedImageCopy;
     
+    // gl::Textures are raster images living on gpu
     gl::Texture         originalTexture;
     gl::Texture         segmentedTexture;
     gl::Texture         saliencyTexture;
     gl::Texture         gradientTexture;
     gl::Texture         seamCarvedTexture;
-    gl::Texture         retargetedTexture;
     
-    params::InterfaceGlRef  origParams;
-    params::InterfaceGlRef	segParams;
-    params::InterfaceGlRef	gradParams;
-    params::InterfaceGlRef	retargParams;
+    params::InterfaceGlRef  linearScalingParams;
+    params::InterfaceGlRef	meshWarpingParams;
+    params::InterfaceGlRef	seamCarvingParams;
     
-    Rectf*              retargRec;
-    Rectf*              thumbnailRect;
-    WindowRef           originalImageWindow;
-    WindowRef           segmentedImageWindow;
-    WindowRef           gradientImageWindow;
-    WindowRef           retargetedImageWindow;
+    Rectf*              linearScaleRec;
+    WindowRef           linearScaleWindow;
+    WindowRef           meshWarpingWindow;
+    WindowRef           seamCarvingWindow;
+    
+    void initData();
+    void initWindows();
+    void initTextures(fs::path path);
+    void initGUI();
+    void resetWindowOriginalSize(WindowRef window);
+    void resetAllWindowsOriginalSize();
+    
+    // Linear Resizing
+    void linearResizeResetButtonClick();
+    void linearResizeButtonClick();
+    
+    //Warping
+    void meshWarperResetButtonClick();
+    void segmentRandomButtonClick();
+    void segmentColorButtonClick();
+    void segmentSaliencyButtonClick();
+    void sobelSaliencyButtonClick();
+    void toggleWireFrameButtonClick();
+    void getPatchEdgeClick();
+    void resizeMeshRect();
+    void resizeMeshEllipse();
+    
+    //SeamCarving
+    void seamCarveResetButtonClick();
+    void sobelGradientButtonClick();
+    void verticalSeamGradientButtonClick();
+    void horizontalSeamGradientButtonClick();
+    void showCurrentSeamButtonClick();
+    void deleteCurrentSeamButtonClick();
+    void addCurrentSeamButtonClick();
+    void resizeSeamButtonClick();
+    
+    void drawLinearScaleWindow();
+    void drawMeshWarpingWindow();
+    void drawSeamCarvingWindow();
+    
+    void linearResizeWindowResize();
+    void meshWarpingWindowResize();
 };
 
 
@@ -127,7 +125,7 @@ void ImageRetargetingApp::setup()
         fs::path path = getOpenFilePath( "", ImageIo::getLoadExtensions() );
         if( ! path.empty() ) {
             initTextures(path);
-            updateApplication();
+            resetAllWindowsOriginalSize();
         }
     }
     catch( ... ) {
@@ -139,8 +137,7 @@ void ImageRetargetingApp::setup()
 
 void ImageRetargetingApp::initData()
 {
-    retargRec = new Rectf (0,0,0,0);
-    thumbnailRect = new Rectf (0,0,0,0);
+    linearScaleRec = new Rectf(0,0,0,0);
     saliencySegmentor = new SaliencySegmentor();
     meshWarpRetargetter = new MeshWarpRetargetter();
     seamCarver = new GradientSeamCarver();
@@ -149,27 +146,22 @@ void ImageRetargetingApp::initData()
 
 void ImageRetargetingApp::initWindows()
 {
-    retargetedImageWindow = this->getWindow();
-    retargetedImageWindow->setTitle("Retargetted Image");
-    retargetedImageWindow->connectDraw(&ImageRetargetingApp::drawRetargettedImageWindow, this);
-    retargetedImageWindow->connectMouseDown(&ImageRetargetingApp::mouseDownRetarget, this);
-    retargetedImageWindow->connectMouseDrag(&ImageRetargetingApp::mouseDragRetarget, this);
+    linearScaleWindow = this->getWindow();
+    linearScaleWindow->setTitle("Linear Scaling");
+    linearScaleWindow->connectDraw(&ImageRetargetingApp::drawLinearScaleWindow, this);
+    linearScaleWindow->connectResize(&ImageRetargetingApp::linearResizeWindowResize, this);
+    linearScalingParams = params::InterfaceGl::create( linearScaleWindow, "Original Image Data", toPixels( ci::Vec2i( 200, 400 ) ) );
     
-    originalImageWindow = createWindow();
-    originalImageWindow->setTitle("Original Image");
-    originalImageWindow->connectDraw(&ImageRetargetingApp::drawOriginalImageWindow, this);
-    origParams = params::InterfaceGl::create( originalImageWindow, "Original Image Data", toPixels( ci::Vec2i( 200, 400 ) ) );
+    seamCarvingWindow = createWindow();
+    seamCarvingWindow->setTitle("Seam Carving");
+    seamCarvingWindow->connectDraw(&ImageRetargetingApp::drawSeamCarvingWindow, this);
+    seamCarvingParams = params::InterfaceGl::create( seamCarvingWindow, "Seam Carving", toPixels( ci::Vec2i( 200, 400 ) ) );
     
-    gradientImageWindow = createWindow();
-    gradientImageWindow->setTitle("Seam Carving");
-    gradientImageWindow->connectDraw(&ImageRetargetingApp::drawGradientImageWindow, this);
-    gradParams = params::InterfaceGl::create( gradientImageWindow, "Seam Carving", toPixels( ci::Vec2i( 200, 400 ) ) );
-    
-    segmentedImageWindow = createWindow();
-    segmentedImageWindow->setTitle("MeshWarping");
-    segmentedImageWindow->connectDraw(&ImageRetargetingApp::drawSegmentedImageWindow, this);
-    segmentedImageWindow->connectResize(&ImageRetargetingApp::resizeWarp, this);
-    segParams = params::InterfaceGl::create( segmentedImageWindow, "Mesh Warping Parameters", toPixels( ci::Vec2i( 200, 400 ) ) );
+    meshWarpingWindow = createWindow();
+    meshWarpingWindow->setTitle("Mesh Warping");
+    meshWarpingWindow->connectDraw(&ImageRetargetingApp::drawMeshWarpingWindow, this);
+    meshWarpingWindow->connectResize(&ImageRetargetingApp::meshWarpingWindowResize, this);
+    meshWarpingParams = params::InterfaceGl::create( meshWarpingWindow, "Mesh Warping", toPixels( ci::Vec2i( 200, 400 ) ) );
 }
 
 
@@ -188,149 +180,122 @@ void ImageRetargetingApp::initTextures(fs::path path)
     segmentedTexture = gl::Texture(segmentedImage);
     
     saliencyImage = saliencySegmentor->getSaliencyMap(originalImage.clone(), SaliencySegmentor::SaliencyMethod::Sobel);
+    saliencyImage = saliencySegmentor->getSegmentedSalientImage(saliencyImage);
     saliencyTexture = gl::Texture(saliencyImage);
     
-    retargetedTexture = gl::Texture(originalImage.clone());
-    retargRec->set(0, 0, originalTexture.getWidth(), originalTexture.getHeight());
+    originalWidth = originalImage.getWidth();
+    originalHeight = originalImage.getHeight();
     
-    resetStates();
+    meshWarpRetargetter->initMesh(originalWidth, originalHeight, saliencySegmentor);
+    linearScaleRec->set(0, 0, originalWidth, originalHeight);
 }
 
 void ImageRetargetingApp::initGUI()
 {
-    //origParams->clear();
-    //mParams.addParam( "Num Points", &mNumPoints, "", true );
-
-    //origParams->addText("Image Width: " + to_string(originalImage.getWidth()));
-    //origParams->addText("Image Height: " + to_string(originalImage.getHeight()));
-    //origParams->addText("Has Alpha: " + to_string(originalImage.hasAlpha()));
-    //origParams->addText("Row Bytes: " + to_string(originalImage.getRowBytes()));
+    linearScalingParams->addButton( "Reset Image", std::bind( &ImageRetargetingApp::linearResizeResetButtonClick, this ) );
+    linearScalingParams->addSeparator();
+    linearScalingParams->addParam("Original Width: ", &originalWidth, true);
+    linearScalingParams->addParam("Original Height: ", &originalHeight, true);
+    linearScalingParams->addParam( "Resize Width", &linearScaleWidth ).min( 1 ).max( 1200 ).step( 1 );
+    linearScalingParams->addParam( "Resize Height", &linearScaleHeight ).min( 1 ).max( 750 ).step( 1 );
+    linearScalingParams->addButton( "Resize", std::bind( &ImageRetargetingApp::linearResizeButtonClick, this ) );
+    linearScalingParams->addSeparator();
     
-    // Segmentation
-    segParams->addText("Saliency");
-    segParams->addParam( "Scale", &(saliencySegmentor->scale) ).min( 1 ).max( 10 ).step( 1 );
-    //segParams->addParam( "Delta", &(saliencySegmentor->delta) ).min( 0 ).max( 100 ).step( 1 );
-    segParams->addButton( "Sobel", std::bind( &ImageRetargetingApp::sobelSaliencyButtonClick, this ) );
-    //segParams->addButton( "Scharr Gradient", std::bind( &ImageRetargetingApp::scharrSaliencyButtonClick, this ) );
-    //segParams->addParam("Saliency Time: ", &saliencySegmentor->saliencyTime, "", true);
-    segParams->addText("Segmentation");
-    segParams->addParam( "Blur", &saliencySegmentor->segBlurDeviation ).min( 0.01f ).max( 1.00f ).step( 0.01f );
-    segParams->addParam( "K",&saliencySegmentor->segNeighborThreshold ).min( 0.0f ).max( 1500.0f ).step( 10.f );
-    segParams->addParam( "Min Size", &saliencySegmentor->segMinSize).min( 0 ).max( 1500 ).step( 10 );
-    segParams->addButton( "Segment Random", std::bind( &ImageRetargetingApp::segmentRandomButtonClick, this ) );
-    segParams->addButton( "Segment Color", std::bind( &ImageRetargetingApp::segmentColorButtonClick, this ) );
-    segParams->addButton( "Segment Saliency", std::bind( &ImageRetargetingApp::segmentSaliencyButtonClick, this ) );
-    //segParams->addParam("Nb of Segments: ", &saliencySegmentor->nbOfSegments, "", true);
-    //segParams->addParam("Segmentation Time: ", &saliencySegmentor->segTime, "", true);
-   // segParams->addSeparator();
+    meshWarpingParams->addButton( "Reset Mesh", std::bind( &ImageRetargetingApp::meshWarperResetButtonClick, this ) );
+    meshWarpingParams->addParam( "Quad Size", &(meshWarpRetargetter->quadSize) ).min( 5 ).max( 100 ).step( 1 );
+    meshWarpingParams->addButton( "Toggle Wire Frame", std::bind( &ImageRetargetingApp::toggleWireFrameButtonClick, this ) );
+    meshWarpingParams->addSeparator();
+    meshWarpingParams->addText("Segmentation");
+    meshWarpingParams->addParam( "Blur", &saliencySegmentor->segBlurDeviation ).min( 0.01f ).max( 1.00f ).step( 0.01f );
+    meshWarpingParams->addParam( "K",&saliencySegmentor->segNeighborThreshold ).min( 0.0f ).max( 1500.0f ).step( 10.f );
+    meshWarpingParams->addParam( "Min Size", &saliencySegmentor->segMinSize).min( 0 ).max( 1500 ).step( 10 );
+    meshWarpingParams->addButton( "Segment Random", std::bind( &ImageRetargetingApp::segmentRandomButtonClick, this ) );
+    meshWarpingParams->addButton( "Segment Color", std::bind( &ImageRetargetingApp::segmentColorButtonClick, this ) );
+    meshWarpingParams->addSeparator();
+    meshWarpingParams->addText("Saliency");
+    meshWarpingParams->addParam( "Scale", &(saliencySegmentor->scale) ).min( 1 ).max( 10 ).step( 1 );
+    meshWarpingParams->addButton( "Sobel Saliency", std::bind( &ImageRetargetingApp::sobelSaliencyButtonClick, this ) );
+    meshWarpingParams->addButton( "Segment Saliency", std::bind( &ImageRetargetingApp::segmentSaliencyButtonClick, this ) );
+    meshWarpingParams->addButton( "Edge Saliency", std::bind( &ImageRetargetingApp::getPatchEdgeClick, this ) );
+    meshWarpingParams->addSeparator();
+    meshWarpingParams->addText("Quad Warping");
+    meshWarpingParams->addParam( "Resize Width", &(meshWarpRetargetter->resizeWidth) ).min( 1 ).max( 1200 ).step( 1 );
+    meshWarpingParams->addParam( "Resize Height", &(meshWarpRetargetter->resizeHeight) ).min( 1 ).max( 750 ).step( 1 );
+    meshWarpingParams->addParam( "Linear Weight", &(meshWarpRetargetter->transformationWeight) ).min( 0.f ).max( 1.f ).step( 0.1f );
+    meshWarpingParams->addButton( "Resize Rect", std::bind( &ImageRetargetingApp::resizeMeshRect, this ) );
+    meshWarpingParams->addButton( "Resize Ellipse", std::bind( &ImageRetargetingApp::resizeMeshEllipse, this ) );
+    meshWarpingParams->addSeparator();
     
-    segParams->addSeparator();
-    segParams->addText("Quad Warping");
-    segParams->addParam( "Quad Size", &(meshWarpRetargetter->quadSize) ).min( 5 ).max( 100 ).step( 1 );
-    segParams->addButton( "Show Mesh", std::bind( &ImageRetargetingApp::getMeshButtonClick, this ) );
-    segParams->addButton( "Set Patch Edges", std::bind( &ImageRetargetingApp::getPatchEdgeClick, this ) );
-    segParams->addButton( "Resize Rect", std::bind( &ImageRetargetingApp::resizeMeshRect, this ) );
-    segParams->addButton( "Resize Ellipse", std::bind( &ImageRetargetingApp::resizeMeshEllipse, this ) );
-    segParams->addSeparator();
-    
-    gradParams->addButton( "Original Image", std::bind( &ImageRetargetingApp::seamCarveResetButtonClick, this ) );
-    gradParams->addSeparator();
-    gradParams->addParam( "Scale", &(seamCarver->scale) ).min( 1 ).max( 20 ).step( 1 );
-    gradParams->addButton( "Sobel Gradient", std::bind( &ImageRetargetingApp::sobelGradientButtonClick, this ) );
-    //gradParams->addButton( "Scharr Gradient", std::bind( &ImageRetargetingApp::scharrGradientButtonClick, this ) );
-    //gradParams->addParam("Time: ", &seamCarver->gradTime, "", true);
-    
-    gradParams->addSeparator();
-    gradParams->addParam( "Nb of Seams", &(seamCarver->nbOfSeams)).min( 1 ).max( 500 ).step( 1 );
-    gradParams->addButton( "Get Vertical Seam", std::bind( &ImageRetargetingApp::verticalSeamGradientButtonClick, this ) );
-    gradParams->addButton( "Get Horizontal Seam", std::bind( &ImageRetargetingApp::horizontalSeamGradientButtonClick, this ) );
-    //gradParams->addParam("Time: ", &(seamCarver->seamTime), "", true);
-    gradParams->addSeparator();
-    gradParams->addButton( "Get Gradient", std::bind( &ImageRetargetingApp::scharrGradientButtonClick, this ) );
-    gradParams->addButton( "Get Seam", std::bind( &ImageRetargetingApp::verticalSeamGradientButtonClick, this ) );
-    //gradParams->addButton( "Show Seam", std::bind( &ImageRetargetingApp::showCurrentSeamButtonClick, this ) );
-    gradParams->addButton( "Delete Seam", std::bind( &ImageRetargetingApp::deleteCurrentSeamButtonClick, this ) );
-    //gradParams->addButton( "Add Seam", std::bind( &ImageRetargetingApp::addCurrentSeamButtonClick, this ) );
-    
-    gradParams->addSeparator();
-    gradParams->addParam("Image Width: ", &(seamCarver->oldWidth), true);
-    gradParams->addParam("Image Height: ", &(seamCarver->oldHeight), true);
-    gradParams->addParam( "Desired Width", &(seamCarver->newWidth) ).min( 1 ).max( 1000 ).step( 1 );
-    gradParams->addParam( "Desired Height", &(seamCarver->newHeight) ).min( 1 ).max( 1000 ).step( 1 );
-    gradParams->addButton( "Resize", std::bind( &ImageRetargetingApp::resizeSeamButtonClick, this ) );
-    gradParams->addParam("Resize Time: ", &(seamCarver->carveTime), true);
-    gradParams->addSeparator();
+    seamCarvingParams->addButton( "Reset Image", std::bind( &ImageRetargetingApp::seamCarveResetButtonClick, this ) );
+    seamCarvingParams->addSeparator();
+    seamCarvingParams->addParam( "Scale", &(seamCarver->scale) ).min( 1 ).max( 20 ).step( 1 );
+    seamCarvingParams->addButton( "Sobel Gradient", std::bind( &ImageRetargetingApp::sobelGradientButtonClick, this ) );
+    seamCarvingParams->addSeparator();
+    seamCarvingParams->addButton( "Show Vertical Seam", std::bind( &ImageRetargetingApp::verticalSeamGradientButtonClick, this ) );
+    seamCarvingParams->addButton( "Show Horizontal Seam", std::bind( &ImageRetargetingApp::horizontalSeamGradientButtonClick, this ) );
+    seamCarvingParams->addSeparator();
+    seamCarvingParams->addButton( "Get Gradient", std::bind( &ImageRetargetingApp::sobelGradientButtonClick, this ) );
+    seamCarvingParams->addButton( "Get Seam", std::bind( &ImageRetargetingApp::verticalSeamGradientButtonClick, this ) );
+    seamCarvingParams->addButton( "Delete Seam", std::bind( &ImageRetargetingApp::deleteCurrentSeamButtonClick, this ) );
+    //seamCarvingParams->addButton( "Add Seam", std::bind( &ImageRetargetingApp::addCurrentSeamButtonClick, this ) );
+    seamCarvingParams->addSeparator();
+    seamCarvingParams->addParam( "Resize Width", &(seamCarver->newWidth) ).min( 1 ).max( 1200 ).step( 1 );
+    seamCarvingParams->addParam( "Resize Height", &(seamCarver->newHeight) ).min( 1 ).max( 750 ).step( 1 );
+    seamCarvingParams->addButton( "Resize", std::bind( &ImageRetargetingApp::resizeSeamButtonClick, this ) );
+    seamCarvingParams->addParam("Resize Time: ", &(seamCarver->carveTime), true);
+    seamCarvingParams->addSeparator();
 }
 
 
-void ImageRetargetingApp::resetStates()
+void ImageRetargetingApp::resetWindowOriginalSize(WindowRef window)
 {
-    meshWarpingState = MeshWarpingState::ShowImage;
-    seamCarvingState = SeamCarvingState::ShowImage;
+    window->setSize(originalTexture.getWidth(), originalTexture.getHeight());
 }
 
-
-
-void ImageRetargetingApp::updateWindows()
+void ImageRetargetingApp::resetAllWindowsOriginalSize()
 {
-    if(originalImageWindow){
-      originalImageWindow->setSize(originalTexture.getWidth(), originalTexture.getHeight());
-    }
-    if(retargetedImageWindow){
-      retargetedImageWindow->setSize(originalTexture.getWidth(), originalTexture.getHeight());
-    }
-    if(segmentedImageWindow){
-        if(meshWarpingState!= MeshWarpingState::ShowMeshWarping){
-            segmentedImageWindow->setSize(segmentedTexture.getWidth(), segmentedTexture.getHeight());
-        }
-    }
-    if(gradientImageWindow){
-        gradientImageWindow->setSize(seamCarvedTexture.getWidth(), seamCarvedTexture.getHeight());
-    }
+    resetWindowOriginalSize(linearScaleWindow);
+    resetWindowOriginalSize(seamCarvingWindow);
+    resetWindowOriginalSize(meshWarpingWindow);
 }
-
-void ImageRetargetingApp::updateApplication()
-{
-    updateWindows();
-}
+    
 
 
+//                              WINDOW DRAWING
+//==============================================================================
 
-
-/////////////////////////////////////////////////////////////////////////////////////////////////
-// WINDOW DRAWING
-/////////////////////////////////////////////////////////////////////////////////////////////////
-
-void ImageRetargetingApp::drawOriginalImageWindow()
+void ImageRetargetingApp::drawLinearScaleWindow()
 {
     gl::clear( Color( 0.f, 0.f, 0.f ) );
+    
     if( originalTexture ) {
-        gl::draw(originalTexture);
+        gl::draw(originalTexture, *linearScaleRec);
     }
-    origParams->draw();
+    linearScalingParams->draw();
 }
 
 
-void ImageRetargetingApp::drawSegmentedImageWindow()
+void ImageRetargetingApp::drawMeshWarpingWindow()
 {
     gl::clear( Color( 0.f, 0.f, 0.f ) );
     
     switch (meshWarpingState) {
         case MeshWarpingState::ShowImage :
-            if( segmentedTexture ) {
-                gl::draw(segmentedTexture);
+            
+            if (originalTexture) {
+                meshWarpRetargetter->drawMesh(originalTexture);
             }
             break;
             
         case MeshWarpingState::ShowSegmentedImage :
             if( segmentedTexture ) {
-                gl::draw(segmentedTexture);
+                meshWarpRetargetter->drawMesh(segmentedTexture);
             }
             break;
             
         case MeshWarpingState::ShowSaliencyMap :
             if( saliencyTexture ) {
-                gl::draw(saliencyTexture);
+                meshWarpRetargetter->drawMesh(saliencyTexture);
             }
             break;
           
@@ -338,7 +303,6 @@ void ImageRetargetingApp::drawSegmentedImageWindow()
             if( originalTexture ) {
                 meshWarpRetargetter->drawMesh(originalTexture);
             }
-            
             break;
             
         case MeshWarpingState::ShowPatchCenterEdge :
@@ -356,26 +320,10 @@ void ImageRetargetingApp::drawSegmentedImageWindow()
         default:
             break;
     }
-    
-    /*
-    if( segmentedTexture ) {
-        gl::draw(segmentedTexture);
-    }
-    */
-    segParams->draw();
+    meshWarpingParams->draw();
 }
 
-void ImageRetargetingApp::drawRetargettedImageWindow()
-{
-    gl::clear( Color( 0.f, 0.f, 0.f ) );
-    if( retargetedTexture ) {
-        gl::draw(retargetedTexture, *retargRec);
-        thumbnailRect->set(10, (this->getWindowSize()).y-50, 50, (this->getWindowSize()).y-10);
-        gl::draw(retargetedTexture, *thumbnailRect);
-    }
-}
-
-void ImageRetargetingApp::drawGradientImageWindow()
+void ImageRetargetingApp::drawSeamCarvingWindow()
 {
     gl::clear( Color( 0.f, 0.f, 0.f ) );
     switch(seamCarvingState)
@@ -392,42 +340,42 @@ void ImageRetargetingApp::drawGradientImageWindow()
             }
             break;
             
-        case SeamCarvingState::ShowSeamCarving:
+        case SeamCarvingState::SeamCarving:
             if(seamCarvedTexture){
-                int dw = seamCarver->newWidth-seamCarvedImage.getWidth();
-                int dh = seamCarver->newHeight-seamCarvedImage.getHeight();
+                int dw = seamCarver->newWidth - seamCarvedImage.getWidth();
+                int dh = seamCarver->newHeight - seamCarvedImage.getHeight();
+                
                 if (dw<0 && dh<0){
-                    //seamCarvedImage = seamCarver->deleteMinEnergySeam(seamCarvedImage);
+                    seamCarvingWindow->setSize(seamCarvedTexture.getWidth()-1, seamCarvedTexture.getHeight());
                     seamCarvedImage = seamCarver->deleteVerticalSeam(seamCarvedImage);
                 }
                 else if (dw<0){
+                    seamCarvingWindow->setSize(seamCarvedTexture.getWidth()-1, seamCarvedTexture.getHeight());
                     seamCarvedImage = seamCarver->deleteVerticalSeam(seamCarvedImage);
                 }
                 else if (dh<0){
+                    seamCarvingWindow->setSize(seamCarvedTexture.getWidth(), seamCarvedTexture.getHeight()-1);
                     seamCarvedImage = seamCarver->deleteHorizontalSeam(seamCarvedImage);
                 }
                 //TODO:: Add Seam
                 else if (dw>=0 && dh>=0) {
                     seamCarvingState = SeamCarvingState::ShowImage;
                     seamCarver->stopCarveTimer();
-                    updateApplication();
                 }
                 seamCarvedTexture = gl::Texture(seamCarvedImage);
                 gl::draw(seamCarvedTexture);
             }
+            
             break;
         case SeamCarvingState::Undefined:
             break;
     }
-    gradParams->draw();
+    seamCarvingParams->draw();
 }
 
 
-
-
-
-//                        RESET
-//===============================================================
+//                        RESET ORIGINAL IMAGE
+//==============================================================================
 void ImageRetargetingApp::seamCarveResetButtonClick()
 {
     gradientImage =  seamCarver->getGradientImage(originalImage.clone()) ;
@@ -435,44 +383,37 @@ void ImageRetargetingApp::seamCarveResetButtonClick()
     seamCarvedTexture = gl::Texture(seamCarvedImage);
     gradientTexture = gl::Texture(gradientImage);
     seamCarvingState = SeamCarvingState::ShowImage;
-    updateApplication();
+    resetWindowOriginalSize(seamCarvingWindow);
+}
+
+void ImageRetargetingApp::meshWarperResetButtonClick()
+{
+    meshWarpingState = MeshWarpingState::ShowImage;
+    saliencyImage = saliencySegmentor->getSaliencyMap(originalImage.clone(), SaliencySegmentor::SaliencyMethod::Sobel);
+    saliencyImage = saliencySegmentor->getSegmentedSalientImage(saliencyImage);
+    saliencyTexture = gl::Texture(saliencyImage);
+    
+    meshWarpRetargetter->initMesh(originalImage.getWidth(), originalImage.getHeight(), saliencySegmentor);
+    meshWarpingWindow->setSize(originalImage.getWidth(), originalImage.getHeight());
 }
 
 //                        EDGE DETECTION
-//===============================================================
+//==============================================================================
 void ImageRetargetingApp::sobelGradientButtonClick()
 {
     seamCarvingState = SeamCarvingState::ShowGradient;
     gradientTexture = gl::Texture(seamCarver->getGradientImage(seamCarvedImage, GradientSeamCarver::EdgeDetection::Sobel));
-    updateApplication();
 }
 
-void ImageRetargetingApp::scharrGradientButtonClick()
-{
-    seamCarvingState = SeamCarvingState::ShowGradient;
-    gradientTexture = gl::Texture(seamCarver->getGradientImage(seamCarvedImage, GradientSeamCarver::EdgeDetection::Scharr));
-    updateApplication();
-}
 
 //                        SALIENCY
-//===============================================================
+//==============================================================================
 void ImageRetargetingApp::sobelSaliencyButtonClick()
 {
     meshWarpingState = MeshWarpingState::ShowSaliencyMap;
     saliencyImage = saliencySegmentor->getSaliencyMap(originalImage.clone(), SaliencySegmentor::SaliencyMethod::Sobel);
     saliencyTexture = gl::Texture(saliencyImage);
-    updateApplication();
 }
-
-void ImageRetargetingApp::scharrSaliencyButtonClick()
-{
-    meshWarpingState = MeshWarpingState::ShowSaliencyMap;
-    saliencyImage = saliencySegmentor->getSaliencyMap(originalImage.clone(), SaliencySegmentor::SaliencyMethod::Scharr);
-    saliencyTexture = gl::Texture(saliencyImage);
-    updateApplication();
-}
-
-
 
 //                        SEGMENTATION
 //==============================================================================
@@ -482,7 +423,6 @@ void ImageRetargetingApp::segmentRandomButtonClick()
     segmentedImage = saliencySegmentor->getSegmentedImage(segmentedImage);
     segmentedTexture = gl::Texture(segmentedImage);
     meshWarpingState = MeshWarpingState::ShowSegmentedImage;
-    updateApplication();
 }
 
 void ImageRetargetingApp::segmentColorButtonClick()
@@ -491,7 +431,6 @@ void ImageRetargetingApp::segmentColorButtonClick()
     segmentedImage = saliencySegmentor->getSegmentedColorImage(segmentedImage);
     segmentedTexture = gl::Texture(segmentedImage);
     meshWarpingState = MeshWarpingState::ShowSegmentedImage;
-    updateApplication();
 }
 
 void ImageRetargetingApp::segmentSaliencyButtonClick()
@@ -500,103 +439,115 @@ void ImageRetargetingApp::segmentSaliencyButtonClick()
     saliencyImage = saliencySegmentor->getSegmentedSalientImage(saliencyImage);
     saliencyTexture = gl::Texture(saliencyImage);
     meshWarpingState = MeshWarpingState::ShowSaliencyMap;
-    updateApplication();
 }
 
 //                        MESH WARPING
 //==============================================================================
 
-void ImageRetargetingApp::getMeshButtonClick()
+void ImageRetargetingApp::toggleWireFrameButtonClick()
 {
-    //meshWarpRetargetter->initMesh(saliencyImage.getWidth(),saliencyImage.getHeight());
-    //meshWarpingState = MeshWarpingState::ShowMesh;
     meshWarpRetargetter->isDrawingWireFrame = !meshWarpRetargetter->isDrawingWireFrame;
-    updateApplication();
 }
 
 void ImageRetargetingApp::getPatchEdgeClick()
 {
     meshWarpRetargetter->initMesh(saliencyImage.getWidth(),saliencyImage.getHeight(), saliencySegmentor);
     meshWarpingState = MeshWarpingState::ShowPatchCenterEdge;
-    updateApplication();
 }
 
 void ImageRetargetingApp::resizeMeshRect()
 {
-    meshWarpRetargetter->resizeMeshRect(segmentedImageWindow->getWidth() , segmentedImageWindow->getHeight());
+    meshWarpRetargetter->resizeMeshRect(meshWarpRetargetter->resizeWidth , meshWarpRetargetter->resizeHeight);
     meshWarpingState = MeshWarpingState::ShowMeshWarping;
-    updateApplication();
+    meshWarpingWindow->setSize(meshWarpRetargetter->resizeWidth , meshWarpRetargetter->resizeHeight);
 }
 
 void ImageRetargetingApp::resizeMeshEllipse()
 {
-    meshWarpRetargetter->resizeMeshEllipse(segmentedImageWindow->getWidth() , segmentedImageWindow->getHeight());
+    meshWarpRetargetter->resizeMeshEllipse(meshWarpRetargetter->resizeWidth , meshWarpRetargetter->resizeHeight);
     meshWarpingState = MeshWarpingState::ShowMeshWarping;
-    updateApplication();
+    meshWarpingWindow->setSize(meshWarpRetargetter->resizeWidth , meshWarpRetargetter->resizeHeight);
 }
 
-//                        SEAM CARVING
-//===============================================================
 
-void ImageRetargetingApp::verticalSeamGradientButtonClick(){
-    seamCarvingState = SeamCarvingState::ShowGradient;
+
+//                        SEAM CARVING BUTTON EVENTS
+//==============================================================================
+
+void ImageRetargetingApp::verticalSeamGradientButtonClick()
+{
     gradientImage = seamCarver->drawVerticalSeamsGradient();
     gradientTexture = gl::Texture(gradientImage);
-    updateApplication();
+    seamCarvingState = SeamCarvingState::ShowGradient;
 }
 
-void ImageRetargetingApp::horizontalSeamGradientButtonClick(){
-    seamCarvingState = SeamCarvingState::ShowGradient;
+void ImageRetargetingApp::horizontalSeamGradientButtonClick()
+{
     gradientImage = seamCarver->drawHorizontalSeamsGradient();
     gradientTexture = gl::Texture(gradientImage);
-    updateApplication();
+    seamCarvingState = SeamCarvingState::ShowGradient;
 }
 
-void ImageRetargetingApp::showCurrentSeamButtonClick(){
-    seamCarvingState = SeamCarvingState::ShowImage;
+void ImageRetargetingApp::showCurrentSeamButtonClick()
+{
     seamCarver->drawCurrentSeam(seamCarvedImageCopy = seamCarvedImage.clone());
     seamCarvedTexture = gl::Texture(seamCarvedImageCopy);
-    updateApplication();
+    seamCarvingState = SeamCarvingState::ShowImage;
 }
 
-void ImageRetargetingApp::deleteCurrentSeamButtonClick(){
-    seamCarvingState = SeamCarvingState::ShowImage;
+void ImageRetargetingApp::deleteCurrentSeamButtonClick()
+{
     seamCarvedImage = seamCarver->deleteCurrentSeam(seamCarvedImage);
     seamCarvedTexture = gl::Texture(seamCarvedImage);
-    updateApplication();
+    seamCarvingState = SeamCarvingState::ShowImage;
 }
 
 //-------TODO:
-void ImageRetargetingApp::addCurrentSeamButtonClick(){
-    updateApplication();
+void ImageRetargetingApp::addCurrentSeamButtonClick()
+{
+    
 }
 
 void ImageRetargetingApp::resizeSeamButtonClick()
 {
-    seamCarvingState = SeamCarvingState::ShowSeamCarving;
     seamCarver->startCarveTimer();
     seamCarvedTexture = gl::Texture(seamCarvedImage);
-    updateApplication();
+    seamCarvingState = SeamCarvingState::SeamCarving;
 }
 
-//                        KEY
-//===============================================================
+//                          LINEAR RESIZE BUTTON EVENTS
+//==============================================================================
+
+void ImageRetargetingApp::linearResizeResetButtonClick()
+{
+    linearScaleRec->set(0,0,originalImage.getWidth(),originalImage.getHeight());
+    linearScaleWindow->setSize(originalImage.getWidth(),originalImage.getHeight());
+}
+
+
+void ImageRetargetingApp::linearResizeButtonClick()
+{
+    linearScaleRec->set(0,0,linearScaleWidth,linearScaleHeight);
+    linearScaleWindow->setSize(linearScaleWidth,linearScaleHeight);
+}
+
+
+
+//                          KEY EVENTS
+//==============================================================================
 
 void ImageRetargetingApp::keyDown( KeyEvent event )
 {
-    if( event.getChar() == 'f' ) {
-        setFullScreen( ! isFullScreen() );
-    }
-    else if( event.getCode() == app::KeyEvent::KEY_ESCAPE ) {
-        setFullScreen( false );
-    }
-    else if( event.getChar() == 'o' ) {
+    
+    if( event.getChar() == 'o' ) {
         fs::path path = getOpenFilePath( "", ImageIo::getLoadExtensions() );
         if( ! path.empty() ){
             initTextures(path);
-            updateApplication();
+            resetAllWindowsOriginalSize();
         }
     }
+    /*
+    todo: use fbo to save images
     else if( event.getChar() == 's' ) {
         fs::path path = getSaveFilePath();
         if( ! path.empty() ) {
@@ -604,42 +555,46 @@ void ImageRetargetingApp::keyDown( KeyEvent event )
             writeImage( writeFile( path ), s8 );
         }
     }
+     */
 }
 
-//                        MOUSE
-//===============================================================
+
+//                          MOUSE EVENTS
+//==============================================================================
 
 void ImageRetargetingApp::fileDrop( FileDropEvent event )
 {
     try {
         initTextures(event.getFile(0));
-        updateApplication();
+        resetAllWindowsOriginalSize();
     }
     catch( ... ) {
         console() << "unable to load the texture file!" << std::endl;
     };
 }
 
-void ImageRetargetingApp::mouseDownRetarget( MouseEvent event )
+
+//                          WINDOW EVENTS
+//==============================================================================
+
+void ImageRetargetingApp::linearResizeWindowResize()
 {
-    int x = event.getX();
-    int y = event.getY();
-    retargRec->set(x,y,x,y);
+    linearScaleWidth = linearScaleWindow->getWidth();
+    linearScaleHeight = linearScaleWindow->getHeight();
+    linearScaleRec->set(0,0,linearScaleWidth,linearScaleHeight);
 }
 
-void ImageRetargetingApp::mouseDragRetarget( MouseEvent event )
+void ImageRetargetingApp::meshWarpingWindowResize()
 {
-    int x = event.getX();
-    int y = event.getY();
-    retargRec->set(retargRec->x1, retargRec->y1, x, y);
+    meshWarpRetargetter->resizeWidth = meshWarpingWindow->getWidth();
+    meshWarpRetargetter->resizeHeight = meshWarpingWindow->getHeight();
+    if(meshWarpRetargetter->getNumVertices() < 500)
+    {
+        meshWarpRetargetter->resizeMeshRect(meshWarpRetargetter->resizeWidth , meshWarpRetargetter->resizeHeight);
+        meshWarpingState = MeshWarpingState::ShowMeshWarping;
+    }
 }
 
-void ImageRetargetingApp::resizeWarp()
-{
-    // tell the warps our window has been resized, so they properly scale up or down
-    
-    //meshWarpRetargetter->resize();
-}
 
 
 CINDER_APP_NATIVE( ImageRetargetingApp, RendererGl )

@@ -49,7 +49,6 @@ public:
     cinder::Surface getSegmentedColorImage(cinder::Surface imgData);
     cinder::Surface getSaliencyMap(cinder::Surface imgData, SaliencyMethod edgeDetect);
     cinder::Surface getSegmentedSalientImage(cinder::Surface imgData);
-    //void setPatchCenters(void);
     const PatchMap getPatchMap();
     universe* getUniverse();
 

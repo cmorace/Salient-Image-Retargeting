@@ -112,6 +112,7 @@ private:
     void drawSeamCarvingWindow();
     
     void linearResizeWindowResize();
+    void seamCarvingWindowResize();
     void meshWarpingWindowResize();
 };
 
@@ -155,6 +156,7 @@ void ImageRetargetingApp::initWindows()
     seamCarvingWindow = createWindow();
     seamCarvingWindow->setTitle("Seam Carving");
     seamCarvingWindow->connectDraw(&ImageRetargetingApp::drawSeamCarvingWindow, this);
+    seamCarvingWindow->connectResize(&ImageRetargetingApp::seamCarvingWindowResize, this);
     seamCarvingParams = params::InterfaceGl::create( seamCarvingWindow, "Seam Carving", toPixels( ci::Vec2i( 200, 400 ) ) );
     
     meshWarpingWindow = createWindow();
@@ -224,6 +226,7 @@ void ImageRetargetingApp::initGUI()
     meshWarpingParams->addParam( "Linear Weight", &(meshWarpRetargetter->transformationWeight) ).min( 0.f ).max( 1.f ).step( 0.1f );
     meshWarpingParams->addButton( "Resize Rect", std::bind( &ImageRetargetingApp::resizeMeshRect, this ) );
     meshWarpingParams->addButton( "Resize Ellipse", std::bind( &ImageRetargetingApp::resizeMeshEllipse, this ) );
+    meshWarpingParams->addParam("Resize Time: ", &(meshWarpRetargetter->resizeTime), true);
     meshWarpingParams->addSeparator();
     
     seamCarvingParams->addButton( "Reset Image", std::bind( &ImageRetargetingApp::seamCarveResetButtonClick, this ) );
@@ -457,7 +460,9 @@ void ImageRetargetingApp::getPatchEdgeClick()
 
 void ImageRetargetingApp::resizeMeshRect()
 {
+    meshWarpRetargetter->startTimer();
     meshWarpRetargetter->resizeMeshRect(meshWarpRetargetter->resizeWidth , meshWarpRetargetter->resizeHeight);
+    meshWarpRetargetter->stopTimer();
     meshWarpingState = MeshWarpingState::ShowMeshWarping;
     meshWarpingWindow->setSize(meshWarpRetargetter->resizeWidth , meshWarpRetargetter->resizeHeight);
 }
@@ -582,6 +587,15 @@ void ImageRetargetingApp::linearResizeWindowResize()
     linearScaleWidth = linearScaleWindow->getWidth();
     linearScaleHeight = linearScaleWindow->getHeight();
     linearScaleRec->set(0,0,linearScaleWidth,linearScaleHeight);
+}
+
+void ImageRetargetingApp::seamCarvingWindowResize()
+{
+    if(seamCarvingState != SeamCarvingState::SeamCarving)
+    {
+        seamCarver->newWidth = seamCarvingWindow->getWidth();
+        seamCarver->newHeight = seamCarvingWindow->getHeight();
+    }
 }
 
 void ImageRetargetingApp::meshWarpingWindowResize()

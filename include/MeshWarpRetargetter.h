@@ -26,12 +26,15 @@ public:
     void resizeMeshRect(int newWidth, int newHeight);
     void resizeMeshEllipse(int newWidth, int newHeight);
     const int getNumVertices();
+    void startTimer();
+    void stopTimer();
     
     int quadSize = 30;
     int resizeWidth = 400;
     int resizeHeight = 600;
     double transformationWeight = 0.8;
     bool isDrawingWireFrame = true;
+    float resizeTime = 0.f;
     
 private:
     struct MeshEdge{
@@ -69,6 +72,8 @@ private:
     };
     std::vector<MeshQuad>	meshQuads;
     
+    cinder::Timer* timer;
+
     std::vector<int>	topBoundaryIndices;
     std::vector<int>	bottomBoundaryIndices;
     std::vector<int>	leftBoundaryIndices;
@@ -110,7 +115,8 @@ private:
     int computeBoundaryConditionTerms(std::vector< Eigen::Triplet<double>> &terms, Eigen::VectorXd &b, double weight, int rowIndex, int newWidth, int newHeight);
     int computeCircleBoundaryConditionTerms(std::vector< Eigen::Triplet<double>> &terms, Eigen::VectorXd &b, double weight, int rowIndex, int newWidth, int newHeight);
     
-    void setEdgeSaliency(MeshEdge& e, universe* u);
+    void setPatchEdgeHighestSaliency(MeshEdge& e, universe* u, int edgeIndex);
+    void setPatchEdgeMidPoint(MeshEdge& e, universe* u, int edgeIndex);
     void test(int newWidth, int newHeight);
 
 };
@@ -120,11 +126,23 @@ MeshWarpRetargetter::MeshWarpRetargetter()
 {
     printf("\nMeshWarpRetargetter");
     vertexVectorX = Eigen::VectorXd();
+    timer = new Timer();
 }
 
 const int MeshWarpRetargetter::getNumVertices()
 {
     return numVertices;
+}
+
+void MeshWarpRetargetter::startTimer()
+{
+    timer->start();
+}
+
+void MeshWarpRetargetter::stopTimer()
+{
+    timer->stop();
+    resizeTime = timer->getSeconds();
 }
 
 
@@ -286,36 +304,48 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
     
 }
 
-void MeshWarpRetargetter::setEdgeSaliency(MeshWarpRetargetter::MeshEdge& e, universe* u)
+void MeshWarpRetargetter::setPatchEdgeHighestSaliency(MeshWarpRetargetter::MeshEdge& e, universe* u, int edgeIndex)
 {
     ci::Vec2f a = e.a;
     ci::Vec2f b = e.b;
     
     float edgeSaliency = 0;
-    if(a.x == b.x)
+    int bestPatchID = 0;
+    if(a.y == b.y)
+    {
+        printf("\nedge %d.y = %f",edgeIndex,a.y);
+        for (int x=a.x; x<=b.x; x++) {
+            int y = round((int)(b.y));
+            int patchID = u->find(nOriginal * y + x);
+            if(currentPatchMap[patchID].normalScore > edgeSaliency)
+            {
+                edgeSaliency = currentPatchMap[patchID].normalScore;
+                bestPatchID = patchID;
+            }
+        }
+    }
+    else // works
     {
         for (int y=a.y; y<=b.y; y++) {
             int patchID = u->find(nOriginal * y + a.x);
             if(currentPatchMap[patchID].normalScore > edgeSaliency)
             {
                 edgeSaliency = currentPatchMap[patchID].normalScore;
+                bestPatchID = patchID;
             }
-            
         }
     }
-    else
-    {
-        for (int x=a.x; x<=b.x; x++) {
-            int patchID = u->find(nOriginal * a.y + x);
-            if(currentPatchMap[patchID].normalScore > edgeSaliency)
-            {
-                edgeSaliency = currentPatchMap[patchID].normalScore;
-            }
-            
-        }
-    }
-    e.saliency = edgeSaliency;
-    
+    currentPatchMap[bestPatchID].edges.push_back(edgeIndex);
+}
+
+void MeshWarpRetargetter::setPatchEdgeMidPoint(MeshWarpRetargetter::MeshEdge& e, universe* u, int edgeIndex)
+{
+    Vec2f midPoint = 0.5f * (e.a + e.b);
+    int edgeX = round(midPoint.x);
+    int edgeY = round(midPoint.y);
+    //printf("\n(x,y) = (%d,%d)",edgeX,edgeY);
+    int patchID = u->find(nOriginal * edgeY + edgeX);
+    currentPatchMap[patchID].edges.push_back(edgeIndex);
 }
 
 
@@ -333,14 +363,8 @@ void MeshWarpRetargetter::initMesh(unsigned int imgWidth, unsigned int imgHeight
     int edgeIndex = 0;
     for(std::vector<MeshEdge>::iterator edgeIter = meshEdges.begin(); edgeIter != meshEdges.end(); edgeIter++, edgeIndex++)
     {
-        Vec2f midPoint = 0.5f * (edgeIter->a + edgeIter->b);
-        int edgeX = round(midPoint.x);
-        int edgeY = round(midPoint.y);
-        //printf("\n(x,y) = (%d,%d)",edgeX,edgeY);
-        int patchID = u->find(nOriginal * edgeY + edgeX);
-        currentPatchMap[patchID].edges.push_back(edgeIndex);
-        //test add edge saliency
-        setEdgeSaliency(*edgeIter, u);
+        //setPatchEdgeHighestSaliency(*edgeIter, u, edgeIndex);
+        setPatchEdgeMidPoint(*edgeIter, u, edgeIndex);
     }
     
     meshPatches.clear();  // todo:: should also clean up meshPatches contents here

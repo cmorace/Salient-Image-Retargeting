@@ -1,30 +1,30 @@
 dependencies: \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/src/WarpBilinear.cpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/include/WarpBilinear.h \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/include/Warping/src/WarpBilinear.cpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/include/Warping/include/WarpBilinear.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/gl/Fbo.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/gl/Texture.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/gl/Vbo.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/TriMesh.h \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/include/Warp.h \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/include/Warping/include/Warp.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/Xml.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/Utilities.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/lexical_cast.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/detail/lcast_precision.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/array.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/assert.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/functional/hash_fwd.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/assert.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/functional/hash_fwd.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/cast.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/converter.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/conversion_traits.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/detail/conversion_traits.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/detail/meta.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/equal_to.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/aux_/comparison_op.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/aux_/numeric_op.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/apply_wrap.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/aux_/include_preprocessed.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/preprocessor/cat.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/preprocessor/stringize.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/aux_/comparison_op.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/aux_/numeric_op.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/apply_wrap.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/aux_/include_preprocessed.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/preprocessor/cat.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/preprocessor/stringize.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/aux_/preprocessed/gcc/equal_to.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/detail/int_float_mixture.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/int_float_mixture_enum.hpp \
@@ -44,16 +44,16 @@ dependencies: \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/bounds.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/detail/bounds.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/numeric_cast_traits.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/cstdint.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/cstdint.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/detail/numeric_cast_traits.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/detail/preprocessed/numeric_cast_traits_common.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/numeric/conversion/detail/preprocessed/numeric_cast_traits_long_long.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/has_left_shift.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/detail/has_binary_operator.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/is_fundamental.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/detail/bool_trait_def.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/detail/template_arity_spec.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/detail/bool_trait_undef.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/detail/bool_trait_def.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/detail/template_arity_spec.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/detail/bool_trait_undef.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/type_traits/has_right_shift.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/math/special_functions/sign.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/math/tools/config.hpp \
@@ -68,10 +68,10 @@ dependencies: \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/aux_/contains_impl.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/find.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/remove_if.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/apply.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/apply.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/vector.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/limits/vector.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/preprocessor/inc.hpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/xcode/../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/preprocessor/inc.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/vector/vector20.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/vector/vector10.hpp \
   ../../../../../../SDKs/cinder_0.8.6_mac/boost/boost/mpl/vector/vector0.hpp \

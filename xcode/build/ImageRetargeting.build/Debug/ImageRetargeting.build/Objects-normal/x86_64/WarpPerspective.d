@@ -1,7 +1,7 @@
 dependencies: \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/src/WarpPerspective.cpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/include/WarpPerspective.h \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/OpenCV/include/CinderOpenCV.h \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/include/Warping/src/WarpPerspective.cpp \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/include/Warping/include/WarpPerspective.h \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/include/OpenCV/include/CinderOpenCV.h \
   ../include/OpenCV/include/opencv2/opencv.hpp \
   ../include/OpenCV/include/opencv2/core/core_c.h \
   ../include/OpenCV/include/opencv2/core/types_c.h \
@@ -29,5 +29,5 @@ dependencies: \
   ../include/OpenCV/include/opencv2/contrib/contrib.hpp \
   ../include/OpenCV/include/opencv2/contrib/retina.hpp \
   ../include/OpenCV/include/opencv2/contrib/openfabmap.hpp \
-  /Users/ccm/Documents/NCKU_Code/ImageRetargeting/include/Warping/include/Warp.h \
+  /Users/ccm/Documents/NCKU_Code/Salient-Image-Retargeting/include/Warping/include/Warp.h \
   ../../../../../../SDKs/cinder_0.8.6_mac/include/cinder/gl/Texture.h
